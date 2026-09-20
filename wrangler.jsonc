@@ -1,6 +1,14 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "learning-assistant-api",
-  "main": "src/index.ts",
-  "compatibility_date": "2024-09-23"
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "learning-assistant-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2024-09-23",
+	"d1_databases": [
+		{
+			"binding": "learning_assistant_db",
+			"database_name": "learning-assistant-db",
+			"database_id": "454b5045-d314-4ff1-a351-57971c37963b",
+			"remote": true
+		}
+	]
 }
