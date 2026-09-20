@@ -1,9 +1,10 @@
 # Migrations
 
-This directory is reserved for Cloudflare D1 migration SQL files.
+Cloudflare D1 migration SQL files, applied in numeric order with
+`npx wrangler d1 migrations apply learning-assistant-db --local` (see the
+README's "Cloudflare D1" section for details).
 
-No migration files exist yet, because no D1 database has been created for
-this project (see the README's "Cloudflare D1 — not yet configured"
-section). Numbered SQL migrations (e.g. `0001_init.sql`) will be added once
-the knowledge-source / question / answer schema (PRD.md §8) is finalized
-and a D1 database is provisioned.
+- `0001_initial_learning_assistant_schema.sql` — `knowledge_sources`,
+  `questions`, `answers`, `citations`, `answer_feedback`, and
+  `received_events` (the inbound-webhook idempotency ledger), plus their
+  indexes.
