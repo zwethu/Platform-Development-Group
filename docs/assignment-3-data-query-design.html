@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Assignment #3: Data and Query Design — Learning Assistant (Team 08)</title>
+<style>
+  :root {
+    --text: #1a1a1a;
+    --muted: #555;
+    --border: #ccc;
+    --head-bg: #f2f2f2;
+    --code-bg: #f5f5f5;
+    --accent: #2b4c7e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: var(--text);
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 24px 28px 60px;
+    line-height: 1.55;
+    font-size: 14px;
+  }
+  .titlepage {
+    text-align: center;
+    padding: 60px 0 40px;
+    border-bottom: 3px solid var(--accent);
+    margin-bottom: 30px;
+  }
+  .titlepage h1 { font-size: 30px; margin: 0 0 8px; color: var(--accent); }
+  .titlepage h2 { font-size: 18px; margin: 0 0 24px; color: var(--muted); font-weight: 500; }
+  .titlepage .meta { font-size: 13px; color: var(--muted); margin-top: 30px; }
+  h1 { font-size: 22px; color: var(--accent); border-bottom: 2px solid var(--border); padding-bottom: 4px; margin-top: 40px; }
+  h2 { font-size: 17px; color: var(--accent); margin-top: 28px; }
+  h3 { font-size: 15px; margin-top: 20px; }
+  p { margin: 8px 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0 18px;
+    font-size: 12.5px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--head-bg); }
+  code {
+    background: var(--code-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 12.5px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-family: "Consolas", "Menlo", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  blockquote {
+    border-left: 4px solid var(--accent);
+    margin: 12px 0;
+    padding: 6px 14px;
+    background: #f7f9fc;
+    color: #333;
+  }
+  .callout-pending {
+    border-left: 4px solid #b8860b;
+    background: #fff8e6;
+    padding: 8px 14px;
+    margin: 12px 0;
+    font-weight: 600;
+  }
+  .callout-done {
+    border-left: 4px solid #1a7a3a;
+    background: #eaf7ee;
+    padding: 8px 14px;
+    margin: 12px 0;
+  }
+  .diagram-wrap { text-align: center; margin: 16px 0; }
+  .diagram-wrap svg { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+  .section-note { color: var(--muted); font-size: 12.5px; }
+  ul, ol { margin: 6px 0; padding-left: 22px; }
+  li { margin: 3px 0; }
+  @media print {
+    body { padding: 0 8px; }
+    h1 { page-break-before: auto; }
+    table, pre, .diagram-wrap { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="titlepage">
+  <h1>Assignment #3: Data and Query Design</h1>
+  <h2>Learning Assistant — Team 08</h2>
+  <div class="meta">
+    Platform Development Course &middot; Digital Campus Platform &middot; Track 2 (Advanced Edge)<br>
+    Stack: Cloudflare Workers &middot; Hono &middot; TypeScript &middot; Cloudflare D1
+  </div>
+</div>
+
+<h1>1. Introduction</h1>
+<p>Learning Assistant is a course question-answering service built as part of a larger university Digital Campus Platform. It lets a student ask a course-scoped question and receive an answer that is grounded <strong>only</strong> in materials an instructor or teaching assistant has explicitly approved for that course.</p>
+<p>Two properties define the product:</p>
+<ul>
+  <li><strong>Every substantive answer carries citations.</strong> An answer is either backed by one or more approved knowledge sources (with excerpts a student can verify), or the system honestly reports that it found nothing and points the student to their instructor — it never invents an answer.</li>
+  <li><strong>It is one service among many.</strong> In the Digital Campus Platform, each team owns one focused service with its own data boundary, integrating with the rest of the platform through REST APIs and versioned webhook events rather than shared databases.</li>
+</ul>
+<p>This assignment covers the data and query design for that service: the relational schema, why the chosen database fits, and the REST API that reads and writes it.</p>
+
+<h1>2. Database Choice</h1>
+<p><strong>Cloudflare D1</strong> (a managed, serverless SQLite database) was chosen for Learning Assistant.</p>
+<table>
+<tr><th>Reason</th><th>Why it matters here</th></tr>
+<tr><td>SQLite-compatible relational database</td><td>The domain is inherently relational: a course has sources; a question has (at most) one answer; an answer has citations and feedback. Foreign keys and UNIQUE/CHECK constraints express these rules directly in the schema.</td></tr>
+<tr><td>Native Cloudflare Worker integration</td><td>The API is a Hono app on Cloudflare Workers. D1 is bound directly into the Worker (<code>env.learning_assistant_db</code>) with no separate network hop or driver.</td></tr>
+<tr><td>Simple migrations, local and remote</td><td><code>wrangler d1 migrations apply ... --local / --remote</code> runs the same numbered SQL migration against a local simulated database or the real remote one.</td></tr>
+<tr><td>Parameterized SQL, indexes, FKs, CHECK constraints</td><td>Standard SQLite: prepared statements with bound parameters, indexes, foreign keys with ON DELETE behavior, column-level CHECK constraints — everything this schema needed.</td></tr>
+<tr><td>Cost / operational simplicity for a student MVP</td><td>Workable free tier, no server to provision or patch, scales to zero between requests — appropriate for a course project.</td></tr>
+</table>
+<p><strong>A realistic limitation:</strong> D1 is suitable for this relational MVP, but it does not provide native vector search for future semantic retrieval — that would need an additional component if added later.</p>
+
+<h1>3. Data Ownership and Boundaries</h1>
+<ul>
+  <li>Learning Assistant owns <strong>its own</strong> D1 database and schema exclusively. No other Digital Campus Platform service reads or writes these tables directly, and this service does not reach into any other service's data store either.</li>
+  <li><code>course_id</code>, <code>student_id</code>, <code>user_id</code>, and <code>created_by</code> are <strong>external identifiers</strong> supplied by other platform services (Course Catalog, Student Identity), stored here only as opaque references.</li>
+  <li>Cross-service integration happens through <strong>REST APIs and signed webhook events</strong>, never direct database access across service boundaries.</li>
+  <li><code>received_events</code> exists to support this: an idempotency ledger for <strong>future</strong> inbound webhook processing (e.g. <code>assignment.published</code>). Its primary key is the event id, so redelivery is safe to detect and skip.</li>
+</ul>
+
+<h1>4. Entity Relationship Diagram</h1>
+<div class="diagram-wrap">
+<svg viewBox="0 0 940 620" xmlns="http://www.w3.org/2000/svg" font-family="Consolas, Menlo, monospace">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#2b4c7e"/>
+    </marker>
+  </defs>
+
+  <!-- QUESTIONS -->
+  <rect x="30" y="30" width="200" height="115" rx="6" fill="#eef3fa" stroke="#2b4c7e" stroke-width="1.5"/>
+  <text x="130" y="50" text-anchor="middle" font-weight="bold" font-size="13">QUESTIONS</text>
+  <line x1="40" y1="58" x2="220" y2="58" stroke="#2b4c7e"/>
+  <text x="40" y="74" font-size="10.5">id (PK)</text>
+  <text x="40" y="87" font-size="10.5">course_id, student_id</text>
+  <text x="40" y="100" font-size="10.5">question_text</text>
+  <text x="40" y="113" font-size="10.5">status, created_at</text>
+  <text x="40" y="126" font-size="10.5">updated_at</text>
+
+  <!-- ANSWERS -->
+  <rect x="360" y="30" width="200" height="130" rx="6" fill="#eef3fa" stroke="#2b4c7e" stroke-width="1.5"/>
+  <text x="460" y="50" text-anchor="middle" font-weight="bold" font-size="13">ANSWERS</text>
+  <line x1="370" y1="58" x2="550" y2="58" stroke="#2b4c7e"/>
+  <text x="370" y="74" font-size="10.5">id (PK)</text>
+  <text x="370" y="87" font-size="10.5">question_id (FK, UNIQUE)</text>
+  <text x="370" y="100" font-size="10.5">content, mode</text>
+  <text x="370" y="113" font-size="10.5">no_source_found</text>
+  <text x="370" y="126" font-size="10.5">created_at</text>
+
+  <!-- CITATIONS -->
+  <rect x="690" y="30" width="220" height="145" rx="6" fill="#eef3fa" stroke="#2b4c7e" stroke-width="1.5"/>
+  <text x="800" y="50" text-anchor="middle" font-weight="bold" font-size="13">CITATIONS</text>
+  <line x1="700" y1="58" x2="900" y2="58" stroke="#2b4c7e"/>
+  <text x="700" y="74" font-size="10.5">id (PK)</text>
+  <text x="700" y="87" font-size="10.5">answer_id (FK)</text>
+  <text x="700" y="100" font-size="10.5">source_id (FK)</text>
+  <text x="700" y="113" font-size="10.5">excerpt, location</text>
+  <text x="700" y="126" font-size="10.5">score, created_at</text>
+
+  <!-- KNOWLEDGE_SOURCES -->
+  <rect x="690" y="300" width="220" height="200" rx="6" fill="#eef3fa" stroke="#2b4c7e" stroke-width="1.5"/>
+  <text x="800" y="320" text-anchor="middle" font-weight="bold" font-size="13">KNOWLEDGE_SOURCES</text>
+  <line x1="700" y1="328" x2="900" y2="328" stroke="#2b4c7e"/>
+  <text x="700" y="344" font-size="10.5">id (PK)</text>
+  <text x="700" y="357" font-size="10.5">course_id, title</text>
+  <text x="700" y="370" font-size="10.5">source_type, source_url</text>
+  <text x="700" y="383" font-size="10.5">storage_key, content</text>
+  <text x="700" y="396" font-size="10.5">keywords, status</text>
+  <text x="700" y="409" font-size="10.5">created_by</text>
+  <text x="700" y="422" font-size="10.5">created_at, updated_at</text>
+
+  <!-- ANSWER_FEEDBACK -->
+  <rect x="360" y="300" width="220" height="145" rx="6" fill="#eef3fa" stroke="#2b4c7e" stroke-width="1.5"/>
+  <text x="470" y="320" text-anchor="middle" font-weight="bold" font-size="13">ANSWER_FEEDBACK</text>
+  <line x1="370" y1="328" x2="570" y2="328" stroke="#2b4c7e"/>
+  <text x="370" y="344" font-size="10.5">id (PK)</text>
+  <text x="370" y="357" font-size="10.5">answer_id (FK)</text>
+  <text x="370" y="370" font-size="10.5">user_id, rating</text>
+  <text x="370" y="383" font-size="10.5">comment, created_at</text>
+
+  <!-- RECEIVED_EVENTS (isolated) -->
+  <rect x="30" y="300" width="220" height="175" rx="6" fill="#faf6ea" stroke="#8a7223" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="140" y="320" text-anchor="middle" font-weight="bold" font-size="13">RECEIVED_EVENTS</text>
+  <text x="140" y="336" text-anchor="middle" font-size="10" fill="#8a7223">(independent — no FK relations)</text>
+  <line x1="40" y1="344" x2="240" y2="344" stroke="#8a7223"/>
+  <text x="40" y="360" font-size="10.5">event_id (PK)</text>
+  <text x="40" y="373" font-size="10.5">event_type, source</text>
+  <text x="40" y="386" font-size="10.5">occurred_at, received_at</text>
+  <text x="40" y="399" font-size="10.5">payload_json</text>
+  <text x="40" y="412" font-size="10.5">processing_status</text>
+
+  <!-- relationships -->
+  <line x1="230" y1="87" x2="358" y2="87" stroke="#2b4c7e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="245" y="80" font-size="10.5" fill="#2b4c7e">1 : 0..1 "produces"</text>
+
+  <line x1="560" y1="87" x2="688" y2="87" stroke="#2b4c7e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="565" y="80" font-size="10.5" fill="#2b4c7e">1 : 0..* "cites"</text>
+
+  <line x1="800" y1="175" x2="800" y2="298" stroke="#2b4c7e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="808" y="240" font-size="10.5" fill="#2b4c7e">1 : 0..*</text>
+  <text x="700" y="255" font-size="10.5" fill="#2b4c7e">"is referenced by"</text>
+
+  <line x1="460" y1="160" x2="460" y2="298" stroke="#2b4c7e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="468" y="235" font-size="10.5" fill="#2b4c7e">1 : 0..*</text>
+  <text x="420" y="250" font-size="10.5" fill="#2b4c7e">"receives"</text>
+</svg>
+</div>
+<p class="section-note">Mermaid ER diagram source (also stored standalone at <code>docs/diagrams/learning-assistant-er-diagram.mmd</code> and inline in the Markdown report):</p>
+<pre>erDiagram
+    QUESTIONS ||--o| ANSWERS : "produces"
+    ANSWERS ||--o{ CITATIONS : "cites"
+    KNOWLEDGE_SOURCES ||--o{ CITATIONS : "is referenced by"
+    ANSWERS ||--o{ ANSWER_FEEDBACK : "receives"
+    RECEIVED_EVENTS { }  (independent, no relationships)</pre>
+<p>Reading the diagram: a <strong>question</strong> produces at most <strong>one answer</strong> (enforced by <code>answers.question_id</code> being both a foreign key and UNIQUE); an <strong>answer</strong> cites <strong>zero or more citations</strong> (zero exactly when <code>no_source_found = 1</code>); a <strong>knowledge source</strong> can be referenced by <strong>zero or more citations</strong>; an <strong>answer</strong> can receive <strong>zero or more feedback</strong> records; <strong>received_events</strong> is independent, with no foreign-key relationship to any other table.</p>
+
+<h1>5. Relational Schema</h1>
+<p>The full, authoritative schema lives in <code>migrations/0001_initial_learning_assistant_schema.sql</code>.</p>
+
+<h2>knowledge_sources</h2>
+<p>Instructor/TA-approved learning material for one course — the only thing the fallback search is ever allowed to draw an answer from.</p>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>id</td><td>TEXT</td><td>PRIMARY KEY</td><td>Source identifier (UUID)</td></tr>
+<tr><td>course_id</td><td>TEXT</td><td>NOT NULL</td><td>Owning course (external identifier)</td></tr>
+<tr><td>title</td><td>TEXT</td><td>NOT NULL</td><td>Display title; also searched by the fallback matcher</td></tr>
+<tr><td>source_type</td><td>TEXT</td><td>NOT NULL</td><td>e.g. document, link, text</td></tr>
+<tr><td>source_url</td><td>TEXT</td><td>nullable</td><td>Set when the source is a link</td></tr>
+<tr><td>storage_key</td><td>TEXT</td><td>nullable</td><td>Set when the original file is stored elsewhere</td></tr>
+<tr><td>content</td><td>TEXT</td><td>nullable</td><td>Extracted/plain text used for matching</td></tr>
+<tr><td>keywords</td><td>TEXT</td><td>nullable</td><td>Comma-separated keyword list; also searched</td></tr>
+<tr><td>status</td><td>TEXT</td><td>NOT NULL, DEFAULT 'approved', CHECK IN (draft, approved, archived)</td><td>Lifecycle state</td></tr>
+<tr><td>created_by</td><td>TEXT</td><td>NOT NULL</td><td>Instructor/TA identifier (external)</td></tr>
+<tr><td>created_at / updated_at</td><td>TEXT</td><td>NOT NULL</td><td>UTC ISO-8601 timestamps</td></tr>
+</table>
+<p><strong>Soft archive:</strong> <code>DELETE /v1/sources/:id</code> never removes this row. It sets <code>status = 'archived'</code> and refreshes <code>updated_at</code>. An archived source is immediately excluded from future retrieval, while any citation pointing to it is preserved as history.</p>
+
+<h2>questions</h2>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>id</td><td>TEXT</td><td>PRIMARY KEY</td><td>Question identifier (UUID)</td></tr>
+<tr><td>course_id</td><td>TEXT</td><td>NOT NULL</td><td>Course the question was asked in</td></tr>
+<tr><td>student_id</td><td>TEXT</td><td>NOT NULL</td><td>Asking student (from identity headers, never the body)</td></tr>
+<tr><td>question_text</td><td>TEXT</td><td>NOT NULL</td><td>The question itself</td></tr>
+<tr><td>status</td><td>TEXT</td><td>NOT NULL, DEFAULT 'pending', CHECK IN (pending, answered, no_source_found, failed)</td><td>Lifecycle state</td></tr>
+<tr><td>created_at / updated_at</td><td>TEXT</td><td>NOT NULL</td><td>UTC ISO-8601 timestamps</td></tr>
+</table>
+
+<h2>answers</h2>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>id</td><td>TEXT</td><td>PRIMARY KEY</td><td>Answer identifier (UUID)</td></tr>
+<tr><td>question_id</td><td>TEXT</td><td>NOT NULL, UNIQUE, FK → questions(id) ON DELETE CASCADE</td><td>One answer per question</td></tr>
+<tr><td>content</td><td>TEXT</td><td>NOT NULL</td><td>The templated answer text</td></tr>
+<tr><td>mode</td><td>TEXT</td><td>NOT NULL, CHECK IN (ai, fallback)</td><td>How the answer was produced (currently always fallback)</td></tr>
+<tr><td>no_source_found</td><td>INTEGER</td><td>NOT NULL, DEFAULT 0, CHECK IN (0,1)</td><td>1 when nothing approved matched</td></tr>
+<tr><td>created_at</td><td>TEXT</td><td>NOT NULL</td><td>UTC ISO-8601 timestamp</td></tr>
+</table>
+
+<h2>citations</h2>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>id</td><td>TEXT</td><td>PRIMARY KEY</td><td>Citation identifier (UUID)</td></tr>
+<tr><td>answer_id</td><td>TEXT</td><td>NOT NULL, FK → answers(id) ON DELETE CASCADE</td><td>Owning answer</td></tr>
+<tr><td>source_id</td><td>TEXT</td><td>NOT NULL, FK → knowledge_sources(id) ON DELETE RESTRICT</td><td>Cited source</td></tr>
+<tr><td>excerpt</td><td>TEXT</td><td>NOT NULL</td><td>Short verifiable text from the source</td></tr>
+<tr><td>location</td><td>TEXT</td><td>nullable</td><td>Reserved for a page/section reference</td></tr>
+<tr><td>score</td><td>REAL</td><td>nullable</td><td>Fallback-search match score</td></tr>
+<tr><td>created_at</td><td>TEXT</td><td>NOT NULL</td><td>UTC ISO-8601 timestamp</td></tr>
+</table>
+<p>The two foreign keys use different <code>ON DELETE</code> behavior deliberately: CASCADE on <code>answer_id</code>, RESTRICT on <code>source_id</code> — a source that is still cited cannot disappear; it must be archived instead.</p>
+
+<h2>answer_feedback</h2>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>id</td><td>TEXT</td><td>PRIMARY KEY</td><td>Feedback identifier (UUID)</td></tr>
+<tr><td>answer_id</td><td>TEXT</td><td>NOT NULL, FK → answers(id) ON DELETE CASCADE</td><td>Rated answer</td></tr>
+<tr><td>user_id</td><td>TEXT</td><td>NOT NULL</td><td>Rating user (external identifier)</td></tr>
+<tr><td>rating</td><td>INTEGER</td><td>NOT NULL, CHECK BETWEEN 1 AND 5</td><td>1–5 rating</td></tr>
+<tr><td>comment</td><td>TEXT</td><td>nullable</td><td>Optional free-text comment</td></tr>
+<tr><td>created_at</td><td>TEXT</td><td>NOT NULL</td><td>UTC ISO-8601 timestamp</td></tr>
+</table>
+
+<h2>received_events</h2>
+<table>
+<tr><th>Column</th><th>Type</th><th>Constraints</th><th>Purpose</th></tr>
+<tr><td>event_id</td><td>TEXT</td><td>PRIMARY KEY</td><td>The idempotency key</td></tr>
+<tr><td>event_type</td><td>TEXT</td><td>NOT NULL</td><td>e.g. assignment.published</td></tr>
+<tr><td>source</td><td>TEXT</td><td>NOT NULL</td><td>Publishing service</td></tr>
+<tr><td>occurred_at</td><td>TEXT</td><td>NOT NULL</td><td>When the source event happened</td></tr>
+<tr><td>received_at</td><td>TEXT</td><td>NOT NULL</td><td>When this service received it</td></tr>
+<tr><td>payload_json</td><td>TEXT</td><td>NOT NULL</td><td>Raw event payload</td></tr>
+<tr><td>processing_status</td><td>TEXT</td><td>NOT NULL, DEFAULT 'received', CHECK IN (received, processed, failed)</td><td>Processing lifecycle</td></tr>
+</table>
+
+<h2>Indexes</h2>
+<table>
+<tr><th>Index</th><th>Table (columns)</th><th>Why</th></tr>
+<tr><td>idx_knowledge_sources_course_status</td><td>knowledge_sources(course_id, status)</td><td>Listing always filters by course and status = approved</td></tr>
+<tr><td>idx_knowledge_sources_course_title</td><td>knowledge_sources(course_id, title)</td><td>Listing is ordered by title within a course</td></tr>
+<tr><td>idx_questions_student_created</td><td>questions(student_id, created_at)</td><td>A student's own question history</td></tr>
+<tr><td>idx_questions_course_created</td><td>questions(course_id, created_at)</td><td>A course's question history</td></tr>
+<tr><td>idx_citations_answer_id</td><td>citations(answer_id)</td><td>Fetching all citations for one answer</td></tr>
+<tr><td>idx_citations_source_id</td><td>citations(source_id)</td><td>Finding citations referencing a given source</td></tr>
+<tr><td>idx_answer_feedback_answer_id</td><td>answer_feedback(answer_id)</td><td>Fetching feedback for an answer</td></tr>
+<tr><td>idx_received_events_type_received</td><td>received_events(event_type, received_at)</td><td>Future: scanning recent events by type</td></tr>
+</table>
+
+<h1>6. Database Migration and Deployment</h1>
+<p><strong>Migration file:</strong> <code>migrations/0001_initial_learning_assistant_schema.sql</code> — a single, additive migration creating all six tables and eight indexes.</p>
+<h2>Local migration verification (actually run)</h2>
+<pre>rm -rf .wrangler/state/v3/d1
+npx wrangler d1 migrations apply learning-assistant-db --local</pre>
+<p>Outcome: <strong>15 SQL statements executed successfully</strong> (6 CREATE TABLE + 8 CREATE INDEX + 1 internal migration-tracking insert). Table/index presence and the two documented column defaults (<code>questions.status = 'pending'</code>, <code>received_events.processing_status = 'received'</code>) were confirmed by inserting rows that omit those columns and reading the value back. Full detail in <code>docs/assignment-3-evidence/local-schema-verification.txt</code>.</p>
+<h2>Remote migration procedure</h2>
+<pre>npx wrangler login
+npx wrangler d1 migrations apply learning-assistant-db --remote
+npx wrangler d1 execute learning-assistant-db --remote --command "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'index') ORDER BY type, name;"</pre>
+<div class="callout-done"><strong>Remote deployment status: Confirmed.</strong> With team approval, the above commands were run against the real <code>learning-assistant-db</code> database. <code>wrangler</code> reported &ldquo;No migrations to apply!&rdquo; &mdash; the remote database already had migration <code>0001_initial_learning_assistant_schema.sql</code> recorded as applied (most likely from an earlier deploy by a teammate on this shared repository). The remote schema was then independently verified: all <strong>6 application tables</strong> and all <strong>8 explicit indexes</strong> are present on the remote database, exactly matching the local schema. No destructive action occurred and no data was changed (<code>changed_db: false</code>, <code>rows_written: 0</code>). Full detail in <code>docs/assignment-3-evidence/remote-migration-verification.txt</code>.</div>
+
+<h1>7. API and CRUD Design</h1>
+<table>
+<tr><th>Method</th><th>Path</th><th>Role</th><th>Purpose</th></tr>
+<tr><td>GET</td><td>/v1/health</td><td>none</td><td>Liveness check</td></tr>
+<tr><td>POST</td><td>/v1/sources</td><td>instructor</td><td>Create a knowledge source</td></tr>
+<tr><td>PATCH</td><td>/v1/sources/{id}</td><td>instructor</td><td>Update a knowledge source</td></tr>
+<tr><td>DELETE</td><td>/v1/sources/{id}</td><td>instructor</td><td>Archive (soft delete) a knowledge source</td></tr>
+<tr><td>GET</td><td>/v1/courses/{courseId}/sources</td><td>student, instructor</td><td>List a course's approved sources</td></tr>
+<tr><td>POST</td><td>/v1/questions</td><td>student</td><td>Ask a question; get a fallback answer + citations</td></tr>
+<tr><td>GET</td><td>/v1/questions/{id}</td><td>owning student, instructor</td><td>Read a question with its answer and citations</td></tr>
+<tr><td>POST</td><td>/v1/answers/feedback</td><td>student, instructor</td><td>Rate an answer (1–5)</td></tr>
+</table>
+<h2>CRUD mapped onto the sources resource</h2>
+<table>
+<tr><th>Operation</th><th>Endpoint</th><th>Notes</th></tr>
+<tr><td>Create</td><td>POST /v1/sources</td><td>Instructor only; created_by from identity header, never the body</td></tr>
+<tr><td>Read</td><td>GET /v1/courses/{courseId}/sources</td><td>Returns only status = approved sources for that course</td></tr>
+<tr><td>Update</td><td>PATCH /v1/sources/{id}</td><td>Instructor only; updates only supplied fields plus updated_at</td></tr>
+<tr><td>Archive (in place of hard Delete)</td><td>DELETE /v1/sources/{id}</td><td>Instructor only; see below</td></tr>
+</table>
+<p><strong>DELETE is intentionally a soft archive, not a hard delete:</strong> the row is never physically removed; <code>status</code> becomes <code>archived</code> and <code>updated_at</code> refreshes; the source immediately disappears from future listings; any citation already pointing at it is preserved; the operation is idempotent.</p>
+
+<h1>8. API Demonstration</h1>
+<p>All examples were run locally against <code>npx wrangler dev --local</code> using the fictional course <code>SE101</code> and fictional users <code>instructor-demo</code>, <code>student-demo-a</code>, <code>student-demo-b</code>. Full evidence in <code>docs/assignment-3-evidence/</code>.</p>
+<p><strong>Temporary development headers.</strong> Every <code>/v1</code> route except <code>/v1/health</code> requires <code>x-user-id</code> and <code>x-user-role</code> (<code>student</code> or <code>instructor</code>). These are <strong>scaffolding only</strong> — no signature or token verification — intended to be replaced by real Student Identity token validation later.</p>
+
+<h2>Health</h2>
+<pre>curl -s http://127.0.0.1:8787/v1/health</pre>
+<pre>{"status":"ok","service":"learning-assistant"}</pre>
+
+<h2>Create a source</h2>
+<pre>curl -s -X POST http://127.0.0.1:8787/v1/sources \
+  -H 'x-user-id: instructor-demo' -H 'x-user-role: instructor' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "courseId": "SE101",
+    "title": "Week 3 REST API Lecture Notes",
+    "sourceType": "document",
+    "sourceUrl": "https://example.edu/se101/week-3-rest",
+    "content": "REST is an architectural style for networked applications...",
+    "keywords": ["REST", "API", "HTTP", "GET", "POST"],
+    "status": "approved"
+  }'</pre>
+<pre>HTTP 201
+{ "data": { "id": "&lt;source-id&gt;", "courseId": "SE101", "title": "Week 3 REST API Lecture Notes",
+  "status": "approved", "createdBy": "instructor-demo", "...": "..." } }</pre>
+
+<h2>List approved sources (a draft source stays hidden)</h2>
+<pre>curl -s http://127.0.0.1:8787/v1/courses/SE101/sources \
+  -H 'x-user-id: student-demo-a' -H 'x-user-role: student'</pre>
+<pre>HTTP 200
+{ "data": { "items": [ { "id": "&lt;source-id&gt;", "status": "approved", "...": "..." } ], "count": 1 } }</pre>
+
+<h2>Update a source</h2>
+<pre>curl -s -X PATCH http://127.0.0.1:8787/v1/sources/&lt;source-id&gt; \
+  -H 'x-user-id: instructor-demo' -H 'x-user-role: instructor' \
+  -H 'Content-Type: application/json' \
+  -d '{ "title": "Week 3 REST API Lecture Notes (Revised)", "keywords": ["REST","API","HTTP","GET","POST","PATCH","DELETE"] }'</pre>
+<pre>HTTP 200
+{ "data": { "id": "&lt;source-id&gt;", "title": "Week 3 REST API Lecture Notes (Revised)",
+  "keywords": "REST, API, HTTP, GET, POST, PATCH, DELETE", "status": "approved", "...": "..." } }</pre>
+
+<h2>Archive a source</h2>
+<pre>curl -s -X DELETE http://127.0.0.1:8787/v1/sources/&lt;source-id&gt; \
+  -H 'x-user-id: instructor-demo' -H 'x-user-role: instructor'</pre>
+<pre>HTTP 200
+{ "data": { "id": "&lt;source-id&gt;", "status": "archived", "...": "..." } }</pre>
+<p>Listing again afterward returns <code>{ "data": { "items": [], "count": 0 } }</code>. Repeating the same DELETE returns <code>200</code> again (idempotent).</p>
+
+<h2>Matching question → fallback answer with a citation</h2>
+<pre>curl -s -X POST http://127.0.0.1:8787/v1/questions \
+  -H 'x-user-id: student-demo-a' -H 'x-user-role: student' \
+  -H 'Content-Type: application/json' \
+  -d '{ "courseId": "SE101", "questionText": "What is REST and which HTTP methods are commonly used?" }'</pre>
+<pre>HTTP 201
+{ "data": {
+    "question": { "id": "&lt;question-id&gt;", "status": "answered", "...": "..." },
+    "answer": { "id": "&lt;answer-id&gt;", "mode": "fallback", "noSourceFound": false,
+      "content": "Based on the approved course materials, the following source(s) appear relevant..." },
+    "citations": [ { "id": "&lt;citation-id&gt;", "sourceId": "&lt;source-id&gt;",
+      "excerpt": "REST is an architectural style for networked applications...", "score": 16 } ],
+    "note": "This is a deterministic keyword search over approved course materials, not an AI-generated explanation."
+} }</pre>
+
+<h2>No-source-found question</h2>
+<pre>curl -s -X POST http://127.0.0.1:8787/v1/questions \
+  -H 'x-user-id: student-demo-a' -H 'x-user-role: student' \
+  -H 'Content-Type: application/json' \
+  -d '{ "courseId": "SE101", "questionText": "Where can I check my exam schedule?" }'</pre>
+<pre>HTTP 201
+{ "data": {
+    "question": { "status": "no_source_found", "...": "..." },
+    "answer": { "content": "I could not find an answer in the approved materials for this course. Please check with your instructor.",
+      "mode": "fallback", "noSourceFound": true },
+    "citations": [],
+    "note": "This is a deterministic keyword search over approved course materials, not an AI-generated explanation."
+} }</pre>
+
+<h2>Question authorization</h2>
+<table>
+<tr><th>Caller</th><th>Result</th></tr>
+<tr><td>student-demo-a (the asking student)</td><td>HTTP 200</td></tr>
+<tr><td>student-demo-b (a different student)</td><td>HTTP 403 FORBIDDEN</td></tr>
+<tr><td>instructor-demo</td><td>HTTP 200</td></tr>
+</table>
+
+<h2>Feedback</h2>
+<pre>curl -s -X POST http://127.0.0.1:8787/v1/answers/feedback \
+  -H 'x-user-id: student-demo-a' -H 'x-user-role: student' \
+  -H 'Content-Type: application/json' \
+  -d '{ "answerId": "&lt;answer-id&gt;", "rating": 5, "comment": "The cited source was helpful." }'</pre>
+<pre>HTTP 201
+{ "data": { "id": "&lt;feedback-id&gt;", "answerId": "&lt;answer-id&gt;", "userId": "student-demo-a",
+  "rating": 5, "comment": "The cited source was helpful.", "createdAt": "2026-09-20T16:37:15.019Z" } }</pre>
+
+<h1>9. Data Quality, Security, and Integrity</h1>
+<ul>
+  <li><strong>Request validation.</strong> Dependency-free helpers reject malformed JSON, non-object bodies, empty required strings, and wrong types before any database access (400 VALIDATION_ERROR).</li>
+  <li><strong>Temporary role-based authorization.</strong> x-user-id / x-user-role middleware rejects missing/invalid identity (401) and a route-level role guard rejects a disallowed role (403).</li>
+  <li><strong>Student question ownership.</strong> A student can only read their own question; an instructor can read any question in a course — enforced server-side.</li>
+  <li><strong>Instructor-only source management.</strong> Create/update/archive of knowledge sources is restricted to the instructor role.</li>
+  <li><strong>Parameterized SQL only.</strong> All queries use D1's bound-parameter API; dynamic PATCH updates build from a fixed column whitelist, never arbitrary client keys.</li>
+  <li><strong>Foreign keys and CHECK constraints.</strong> Relationships and finite value sets are enforced by the database itself — verified directly (§10).</li>
+  <li><strong>Correlation IDs.</strong> Every response carries x-correlation-id; every error body includes the same value.</li>
+  <li><strong>Archived-source behavior.</strong> Excluded from future retrieval; existing citations remain intact.</li>
+  <li><strong>Approved-source-only fallback retrieval.</strong> Only status = approved sources in the question's own course are ever searched or cited.</li>
+  <li><strong>No source means no invented answer.</strong> A fixed, honest message is returned instead of a guess.</li>
+</ul>
+
+<h1>10. Testing and Verification</h1>
+<ul>
+  <li><strong>Type check:</strong> <code>npm run typecheck</code> → pass, no errors.</li>
+  <li><strong>Automated tests:</strong> <code>npm test</code> → <strong>47 / 47 passing</strong> across 6 test files.</li>
+  <li><strong>Local migration:</strong> applied cleanly to a fresh local D1 — 15 statements, all six tables and eight indexes present; both column defaults confirmed by insert-then-read verification.</li>
+  <li><strong>Local API smoke test:</strong> all seven business endpoints plus health exercised end-to-end against a real local D1 database — source CRUD/archive/idempotency, draft exclusion, matching and non-matching question flows, question-ownership authorization, and feedback creation.</li>
+  <li><strong>Known limitation — plain Node Vitest vs. live D1:</strong> the automated suite runs in a plain Node environment (no <code>@cloudflare/vitest-pool-workers</code>), so database-backed success paths are verified manually (above) rather than by an automated integration test. The 47 automated tests cover pure logic and every route's pre-database-access path.</li>
+  <li><strong>Known limitation — simple keyword matching:</strong> the fallback matcher does case-insensitive substring matching on tokens of length ≥ 2, so a very common short token can occasionally match incidentally against unrelated text containing that substring. This is a known characteristic of the current simple-by-design matching approach.</li>
+  <li><strong>Remote migration and schema verification:</strong> performed, with explicit team approval. <code>wrangler d1 migrations apply learning-assistant-db --remote</code> reported the migration was already applied (no changes made); a direct <code>sqlite_master</code> query against the remote database confirmed all 6 tables and 8 indexes are present and match the local schema. Full evidence in <code>docs/assignment-3-evidence/remote-migration-verification.txt</code>.</li>
+  <li><strong>Remote API testing:</strong> not performed. The Worker itself has not been deployed (<code>wrangler deploy</code>) or exercised against the remote database — only the schema was verified remotely.</li>
+</ul>
+
+<h1>11. Conclusion</h1>
+<p>The Learning Assistant schema — six tables, eight indexes, foreign keys, and CHECK constraints in a single migration file — directly supports the product's core promise: an answer is either grounded in a specific, approved, citable source, or the system says so honestly. Cloudflare D1 was a good fit because the domain is small and relational, the Worker binding requires no extra infrastructure, and migrations are simple to apply both locally and remotely. The seven /v1 REST endpoints provide full CRUD (create/read/update/archive) over knowledge sources, plus the question → fallback-answer → citation → feedback flow, all demonstrated above against a real local database with representative fictional data. Remote deployment is designed and ready but intentionally gated behind explicit team approval, consistent with treating a production database migration as a deliberate, reviewed action.</p>
+
+<h1>Appendix A: Team Contribution</h1>
+<p class="section-note">(To be completed by the team — no contributions are claimed here.)</p>
+<table>
+<tr><th>Team member</th><th>Main responsibility</th><th>Evidence / commit / document section</th></tr>
+<tr><td>TODO</td><td>TODO</td><td>TODO</td></tr>
+<tr><td>TODO</td><td>TODO</td><td>TODO</td></tr>
+<tr><td>TODO</td><td>TODO</td><td>TODO</td></tr>
+<tr><td>TODO</td><td>TODO</td><td>TODO</td></tr>
+<tr><td>TODO</td><td>TODO</td><td>TODO</td></tr>
+</table>
+
+<h1>Appendix B: Local Commands</h1>
+<pre># Type check and tests
+npm run typecheck
+npm test
+
+# Reset and apply the local D1 migration
+rm -rf .wrangler/state/v3/d1
+npx wrangler d1 migrations apply learning-assistant-db --local
+
+# Inspect the local schema
+npx wrangler d1 execute learning-assistant-db --local --command \
+  "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'index') ORDER BY type, name;"
+
+# Run the Worker locally (forces the D1 binding to local)
+npx wrangler dev --local
+
+# Clean up local scratch D1 state when done
+rm -rf .wrangler/state/v3/d1</pre>
+
+<p class="section-note" style="margin-top:40px; border-top:1px solid var(--border); padding-top:10px;">
+  To export this page to PDF: open it in a browser and use <strong>Print → Save as PDF</strong>
+  (or it may already have been rendered to <code>output/assignment-3-data-query-design.pdf</code> — see the task report for confirmation).
+</p>
+
+</body>
+</html>
