@@ -1,0 +1,9 @@
+# Copy this file to .dev.vars for local development.
+# Never commit real secrets — .dev.vars is gitignored. This file holds
+# placeholders only, for variables that future assignments will need.
+
+# Shared secret for verifying inbound webhook signatures (not implemented yet)
+EVENT_HMAC_SECRET=changeme
+
+# Identity service JWKS endpoint (not implemented yet)
+IDENTITY_JWKS_URL=https://example.invalid/.well-known/jwks.json
