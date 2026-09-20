@@ -9,9 +9,11 @@ import { createFeedback, findAnswerExists } from '../repositories/feedback-repos
 
 export const feedback = new Hono<AppEnv>()
 
-feedback.use('*', requireAuth)
+// requireAuth is applied per-route (not via `.use('*', ...)`) — see the
+// comment in src/routes/sources.ts for why a wildcard here would leak
+// onto unrelated public routes mounted alongside this sub-app.
 
-feedback.post('/answers/feedback', async (c) => {
+feedback.post('/answers/feedback', requireAuth, async (c) => {
   try {
     const body = await readJsonBody(c)
 

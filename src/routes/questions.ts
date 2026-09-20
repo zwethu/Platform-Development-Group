@@ -17,7 +17,9 @@ import {
 
 export const questions = new Hono<AppEnv>()
 
-questions.use('*', requireAuth)
+// requireAuth is applied per-route (not via `.use('*', ...)`) — see the
+// comment in src/routes/sources.ts for why a wildcard here would leak
+// onto unrelated public routes mounted alongside this sub-app.
 
 const NO_SOURCE_MESSAGE =
   'I could not find an answer in the approved materials for this course. Please check with your instructor.'
@@ -30,7 +32,7 @@ export function canViewQuestion(user: AuthUser, question: Question): boolean {
   return user.role === 'instructor' || question.studentId === user.id
 }
 
-questions.post('/questions', requireRole('student'), async (c) => {
+questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
   try {
     const body = await readJsonBody(c)
     const courseId = requireNonEmptyString(body.courseId, 'courseId')
@@ -95,7 +97,7 @@ questions.post('/questions', requireRole('student'), async (c) => {
   }
 })
 
-questions.get('/questions/:id', async (c) => {
+questions.get('/questions/:id', requireAuth, async (c) => {
   const id = c.req.param('id')
   if (!id) return sendError(c, 400, 'VALIDATION_ERROR', 'id is required.')
 

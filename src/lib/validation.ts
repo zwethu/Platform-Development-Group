@@ -66,3 +66,21 @@ export function optionalKeywords(value: unknown): string | null {
 
   throw new ValidationError('keywords must be an array of strings or a string.')
 }
+
+/** Accepts an array of strings (trimmed, empties dropped); null/undefined -> []. */
+export function optionalStringArray(value: unknown, field: string): string[] {
+  if (value === undefined || value === null) return []
+
+  if (!Array.isArray(value)) {
+    throw new ValidationError(`${field} must be an array of strings.`)
+  }
+
+  return value
+    .map((item) => {
+      if (typeof item !== 'string') {
+        throw new ValidationError(`${field} must be an array of strings.`)
+      }
+      return item.trim()
+    })
+    .filter((item) => item.length > 0)
+}

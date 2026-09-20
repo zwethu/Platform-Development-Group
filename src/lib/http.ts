@@ -8,7 +8,13 @@ import type { AppEnv } from './app-env'
 // This is distinct from src/lib/http-error.ts, which the pre-existing
 // health/404 paths already use — see README/API notes for that split.
 
-export type ErrorCode = 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND' | 'VALIDATION_ERROR' | 'INTERNAL_ERROR'
+export type ErrorCode =
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
+  | 'NOT_FOUND'
+  | 'VALIDATION_ERROR'
+  | 'INTERNAL_ERROR'
+  | 'CONFIGURATION_ERROR'
 
 export function sendData<T>(c: Context<AppEnv>, status: ContentfulStatusCode, data: T) {
   return c.json({ data }, status)

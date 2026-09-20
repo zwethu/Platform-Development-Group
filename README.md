@@ -75,6 +75,8 @@ success as `{ "data": ... }`, errors as
 | POST | `/v1/questions` | student | Ask a question; gets a fallback answer + citations |
 | GET | `/v1/questions/:id` | owning student, instructor | Read a question with its answer and citations |
 | POST | `/v1/answers/feedback` | student, instructor | Rate an answer (1–5) |
+| GET | `/v1/integration/status` | none | Public integration status for partner teams (see "Team 17 Integration" below) |
+| POST | `/v1/webhooks/internship` | none (signature instead) | Team 17's inbound webhook (see "Team 17 Integration" below) |
 
 ### Temporary identity headers
 
@@ -153,6 +155,141 @@ curl -X POST http://127.0.0.1:8787/v1/questions \
   -d '{ "courseId": "SE101", "questionText": "What is a REST API?" }'
 ```
 
+## Team 17 Integration
+
+Assignment #5 (Interface Between Groups) partner: **Team 17 (Internship)**.
+Two endpoints support this integration, both **outside** the temporary
+`x-user-id`/`x-user-role` auth used by the rest of the API — they are for
+other services to call, not human callers.
+
+### Public status endpoint
+
+```
+GET /v1/integration/status
+```
+
+Public, no headers required. Returns only safe static metadata (service
+name, team, readiness, and the agreed integration contract fields) — never
+secrets, environment values, database details, or user data.
+
+### Webhook receiver
+
+```
+POST /v1/webhooks/internship
+```
+
+Receives `internship.opportunity.published` from Team 17 when a new
+internship opportunity is published. Authenticated by an HMAC-SHA-256
+signature instead of the usual identity headers, since this is a
+service-to-service call, not a human one.
+
+**Required headers:**
+
+| Header | Purpose |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Signature` | Hex-encoded HMAC-SHA-256 signature (see below) |
+| `X-Correlation-Id` | Optional — echoed back if supplied, otherwise generated |
+
+**Signature:** HMAC-SHA-256, hex-encoded, computed over the **exact raw
+request body text** (not a re-serialized copy) using the shared secret in
+`INTERNSHIP_WEBHOOK_SECRET`. Verified with the Workers Web Crypto API
+(`crypto.subtle.verify`, which compares in constant time) — see
+`src/lib/webhook-signature.ts`.
+
+**Environment variable:** `INTERNSHIP_WEBHOOK_SECRET` (see
+`.dev.vars.example`). **The real secret value must be exchanged with Team
+17 privately (not in chat, commits, issues, or this file) and must never
+be committed to this repository.** Locally it goes in `.dev.vars`; in the
+deployed Worker it is set with `wrangler secret put
+INTERNSHIP_WEBHOOK_SECRET` — never in `wrangler.jsonc`.
+
+**Behavior:**
+
+- Missing/empty `INTERNSHIP_WEBHOOK_SECRET` configuration → `503
+  CONFIGURATION_ERROR` (the request is not processed).
+- Missing or invalid signature → `401 UNAUTHORIZED` (no source is ever
+  created for a request that fails signature verification).
+- Invalid event data (wrong `type`/`source`, missing required fields) →
+  `400 VALIDATION_ERROR`.
+- A replayed `eventId` (checked against `received_events`) → `200` with
+  `{ "data": { "eventId": "...", "status": "duplicate", "processed": false } }`
+  and **no** second knowledge source is created.
+- A new, valid event → records a `received_events` row, creates exactly
+  one `approved` `knowledge_sources` row (`course_id = "CAREER"`,
+  `source_type = "internship_opportunity"`) built from the event's
+  `title`/`companyName`/`description`/`requirements`/`applicationDeadline`,
+  marks the event `processed`, and returns `202` with
+  `{ "data": { "eventId": "...", "status": "accepted", "knowledgeSourceId": "..." } }`.
+
+Once deployed, the full webhook URL to give Team 17 will be:
+
+```
+https://<worker-subdomain>.workers.dev/v1/webhooks/internship
+```
+
+(the exact `<worker-subdomain>` depends on how the Worker is deployed and
+is not yet finalized).
+
+**This event payload/schema is a provisional development contract** —
+subject to change once both Team 08 and Team 17 formally confirm it.
+
+### Manual local test procedure
+
+This integration's accept/duplicate behavior is verified against a real
+local D1 database manually (see "What was tested" below for why). To
+reproduce:
+
+```bash
+# 1. Start the Worker locally against the local D1 (not the mixed-mode default)
+npx wrangler dev --local
+
+# 2. In another terminal: create a temporary LOCAL-ONLY secret
+#    (never commit .dev.vars — it's already gitignored)
+echo "INTERNSHIP_WEBHOOK_SECRET=local-dev-temp-secret-not-real" > .dev.vars
+# restart the dev server after adding/changing .dev.vars
+
+# 3. Compute an HMAC-SHA-256 hex signature over the exact JSON body with openssl
+PAYLOAD='{"eventId":"evt-manual-001","type":"internship.opportunity.published","occurredAt":"2026-09-21T00:00:00.000Z","source":"team-17-internship","subject":"opportunity:int-001","data":{"opportunityId":"int-001","title":"Software Engineering Internship","companyName":"Demo Technology Co.","description":"Support web application development.","requirements":["Resume","GitHub profile"],"applicationDeadline":"2026-10-15T16:59:00.000Z","url":"https://example.invalid/internships/int-001"}}'
+SIGNATURE=$(printf '%s' "$PAYLOAD" | openssl dgst -sha256 -hmac "local-dev-temp-secret-not-real" | sed 's/^.* //')
+
+# 4. Send the request
+curl -s -w '\n%{http_code}\n' -X POST http://127.0.0.1:8787/v1/webhooks/internship \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIGNATURE" \
+  --data-raw "$PAYLOAD"
+
+# 5. Send the exact same request again (replay)
+curl -s -w '\n%{http_code}\n' -X POST http://127.0.0.1:8787/v1/webhooks/internship \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Signature: $SIGNATURE" \
+  --data-raw "$PAYLOAD"
+
+# 6. Expected: the first call returns 202 with status "accepted"; the
+#    second returns 200 with status "duplicate" and no new source.
+
+# 7. Verify one knowledge source and one received event exist locally
+npx wrangler d1 execute learning-assistant-db --local --command \
+  "SELECT id, course_id, title, status FROM knowledge_sources WHERE course_id = 'CAREER';"
+npx wrangler d1 execute learning-assistant-db --local --command \
+  "SELECT event_id, processing_status FROM received_events WHERE event_id = 'evt-manual-001';"
+
+# 8. Clean up local temporary state afterward
+rm -f .dev.vars
+rm -rf .wrangler/state/v3/d1
+```
+
+**What was tested automatically vs. manually.** The project's Vitest setup
+runs in plain Node (no `@cloudflare/vitest-pool-workers`), so
+`test/internship-webhook.test.ts` and `test/webhook-signature.test.ts`
+automatically cover: missing-configuration (`503`), missing/invalid
+signature (`401`), invalid payloads (`400`), and — using a small
+purpose-built D1 mock (`test/helpers/fake-d1.ts`), not a real database —
+the accept (`202`) and duplicate (`200`) idempotency logic. The real SQL
+path (actual foreign keys, actual `received_events`/`knowledge_sources`
+persistence) was verified **manually** with the procedure above against a
+real local D1 database, not by an automated test.
+
 ## Cloudflare D1
 
 A D1 database is configured in `wrangler.jsonc` (binding `learning_assistant_db`,
@@ -199,11 +336,13 @@ and validation helpers in `src/lib/constants.ts`.
 ## Project layout
 
 - `src/index.ts` — Hono app entry, wires correlation-id middleware and mounts `/v1` routes
-- `src/routes/` — route modules (`health.ts`, `sources.ts`, `questions.ts`, `feedback.ts`)
-- `src/middleware/auth.ts` — **temporary** header-based identity + role checks (see API docs above)
+- `src/routes/` — route modules (`health.ts`, `sources.ts`, `questions.ts`, `feedback.ts`, `integration.ts`, `webhooks.ts`)
+- `src/middleware/auth.ts` — **temporary** header-based identity + role checks, applied per-route (see API docs above)
 - `src/middleware/correlation-id.ts` — `x-correlation-id` generation/echo
 - `src/services/fallback-search-service.ts` — deterministic keyword matching, no LLM
-- `src/repositories/` — D1 access per resource (`sources-repository.ts`, `questions-repository.ts` [also answers/citations], `feedback-repository.ts`)
+- `src/lib/webhook-signature.ts` — HMAC-SHA-256 verification for the Team 17 webhook
+- `src/lib/env.d.ts` — ambient type augmentation adding `INTERNSHIP_WEBHOOK_SECRET` to `Env`
+- `src/repositories/` — D1 access per resource (`sources-repository.ts`, `questions-repository.ts` [also answers/citations], `feedback-repository.ts`, `received-events-repository.ts`)
 - `src/lib/http.ts` — `{ data }` / `{ error }` response envelope for the v1 business routes
 - `src/lib/http-error.ts` — older JSON error helper still used by the pre-existing 404 handler
 - `src/lib/validation.ts` — dependency-free request-body validation helpers

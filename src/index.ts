@@ -4,6 +4,8 @@ import { health } from './routes/health'
 import { sources } from './routes/sources'
 import { questions } from './routes/questions'
 import { feedback } from './routes/feedback'
+import { integration } from './routes/integration'
+import { webhooks } from './routes/webhooks'
 import { correlationId } from './middleware/correlation-id'
 import { jsonError } from './lib/http-error'
 import { sendError } from './lib/http'
@@ -17,6 +19,8 @@ v1.route('/', health) // unauthenticated, unchanged
 v1.route('/', sources)
 v1.route('/', questions)
 v1.route('/', feedback)
+v1.route('/', integration) // public, no temporary auth headers required
+v1.route('/', webhooks) // Team 17 inbound webhook, signature-authenticated instead
 
 app.route('/v1', v1)
 

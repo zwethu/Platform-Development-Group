@@ -7,3 +7,9 @@ EVENT_HMAC_SECRET=changeme
 
 # Identity service JWKS endpoint (not implemented yet)
 IDENTITY_JWKS_URL=https://example.invalid/.well-known/jwks.json
+
+# HMAC-SHA-256 secret for verifying POST /v1/webhooks/internship signatures
+# from Team 17 (Internship). Exchange the real value with Team 17 privately
+# (never in chat logs, commits, or this file) and set it in your local
+# .dev.vars only. See README's "Team 17 Integration" section.
+INTERNSHIP_WEBHOOK_SECRET=

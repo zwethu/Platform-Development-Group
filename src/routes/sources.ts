@@ -17,9 +17,12 @@ import {
 
 export const sources = new Hono<AppEnv>()
 
-sources.use('*', requireAuth)
+// requireAuth is applied per-route (not via `.use('*', ...)`) because this
+// sub-app is mounted at the v1 root alongside public routes (integration
+// status, the internship webhook) — a wildcard here would otherwise catch
+// every path under /v1, not just this file's own routes.
 
-sources.post('/sources', requireRole('instructor'), async (c) => {
+sources.post('/sources', requireAuth, requireRole('instructor'), async (c) => {
   try {
     const body = await readJsonBody(c)
 
@@ -64,7 +67,7 @@ sources.post('/sources', requireRole('instructor'), async (c) => {
   }
 })
 
-sources.patch('/sources/:id', requireRole('instructor'), async (c) => {
+sources.patch('/sources/:id', requireAuth, requireRole('instructor'), async (c) => {
   try {
     const id = c.req.param('id')
     if (!id) return sendError(c, 400, 'VALIDATION_ERROR', 'id is required.')
@@ -103,7 +106,7 @@ sources.patch('/sources/:id', requireRole('instructor'), async (c) => {
 })
 
 // Soft delete / archive only — the row is never physically removed.
-sources.delete('/sources/:id', requireRole('instructor'), async (c) => {
+sources.delete('/sources/:id', requireAuth, requireRole('instructor'), async (c) => {
   const id = c.req.param('id')
   if (!id) return sendError(c, 400, 'VALIDATION_ERROR', 'id is required.')
 
@@ -117,7 +120,7 @@ sources.delete('/sources/:id', requireRole('instructor'), async (c) => {
   return sendData(c, 200, archived)
 })
 
-sources.get('/courses/:courseId/sources', async (c) => {
+sources.get('/courses/:courseId/sources', requireAuth, async (c) => {
   const courseId = c.req.param('courseId')?.trim()
   if (!courseId) {
     return sendError(c, 400, 'VALIDATION_ERROR', 'courseId is required.')
