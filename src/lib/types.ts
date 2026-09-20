@@ -80,3 +80,12 @@ export interface ApiErrorResponse {
     details?: unknown
   }
 }
+
+// --- Temporary request-header identity (see src/middleware/auth.ts) ---
+
+export type UserRole = 'student' | 'instructor'
+
+export interface AuthUser {
+  id: string
+  role: UserRole
+}
