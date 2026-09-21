@@ -12,6 +12,21 @@ declare global {
   interface Env {
     /** HMAC-SHA-256 secret for verifying POST /v1/webhooks/internship signatures. */
     INTERNSHIP_WEBHOOK_SECRET?: string
+
+    /**
+     * Shared secret Team 17 gave us for their `X-Webhook-Secret` header,
+     * sent on outbound calls from POST /v1/integrations/team17/test-send to
+     * their `/api/webhooks/partner` receiver. Never logged, stored, or
+     * returned in any response.
+     */
+    TEAM17_OUTBOUND_WEBHOOK_SECRET?: string
+
+    /**
+     * Gates the Assignment-5-only routes under /v1/integrations/team17/*
+     * (test-send, deliveries) via the X-Integration-Test-Key header. Not a
+     * partner-facing secret — this protects our own test/evidence tooling.
+     */
+    INTEGRATION_TEST_KEY?: string
   }
 }
 

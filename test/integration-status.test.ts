@@ -6,21 +6,18 @@ describe('GET /v1/integration/status', () => {
     const res = await app.request('/v1/integration/status') // no identity headers at all
 
     expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual({
-      data: {
-        service: 'learning-assistant',
-        team: '08',
-        status: 'ready',
-        version: 'v1',
-        integration: {
-          partner: 'internship',
-          inboundWebhookPath: '/v1/webhooks/internship',
-          inboundEventType: 'internship.opportunity.published',
-          outboundEventType: 'learning.questioned',
-        },
+    const body = (await res.json()) as { data: Record<string, unknown> }
+    expect(body.data).toMatchObject({
+      service: 'team-08-learning-assistant',
+      team: 'Team 08',
+      status: 'ok',
+      integration: {
+        partner: 'team-17-internship',
+        inboundWebhook: '/v1/webhooks/internship',
       },
     })
+    expect(typeof body.data.timestamp).toBe('string')
+    expect(new Date(body.data.timestamp as string).toISOString()).toBe(body.data.timestamp)
   })
 
   it('echoes the correlation id header', async () => {

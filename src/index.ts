@@ -6,6 +6,7 @@ import { questions } from './routes/questions'
 import { feedback } from './routes/feedback'
 import { integration } from './routes/integration'
 import { webhooks } from './routes/webhooks'
+import { team17Integration } from './routes/team17-integration'
 import { correlationId } from './middleware/correlation-id'
 import { jsonError } from './lib/http-error'
 import { sendError } from './lib/http'
@@ -21,6 +22,7 @@ v1.route('/', questions)
 v1.route('/', feedback)
 v1.route('/', integration) // public, no temporary auth headers required
 v1.route('/', webhooks) // Team 17 inbound webhook, signature-authenticated instead
+v1.route('/', team17Integration) // Assignment 5 outbound test-send + deliveries, X-Integration-Test-Key gated
 
 app.route('/v1', v1)
 

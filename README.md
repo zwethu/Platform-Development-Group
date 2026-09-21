@@ -290,6 +290,28 @@ path (actual foreign keys, actual `received_events`/`knowledge_sources`
 persistence) was verified **manually** with the procedure above against a
 real local D1 database, not by an automated test.
 
+### Outbound Team 17 test-send (Assignment 5 evidence tooling)
+
+```
+POST /v1/integrations/team17/test-send
+GET  /v1/integrations/team17/deliveries
+```
+
+Internal-only routes, **not** part of the public API and **not** gated by
+the temporary `x-user-id`/`x-user-role` headers — both require
+`X-Integration-Test-Key` to match the `INTEGRATION_TEST_KEY` binding (401
+if missing/invalid, 503 if unconfigured).
+
+`test-send` builds and sends an agreed `partner.updated` handshake payload
+to Team 17's `POST /api/webhooks/partner` using the secret in
+`TEAM17_OUTBOUND_WEBHOOK_SECRET` (never accepts a destination URL from the
+caller; only `resource_id`/`status` are overridable via an optional JSON
+body). Every attempt is logged to the `outbound_webhook_deliveries` D1
+table — success or failure, never the secret or headers — and `deliveries`
+lists the most recent ones. See `docs/team17-integration-contract.md` for
+the full contract and `docs/A5-Team08-Integration-Evidence.md` for
+Assignment 5 evidence.
+
 ## Cloudflare D1
 
 A D1 database is configured in `wrangler.jsonc` (binding `learning_assistant_db`,

@@ -13,3 +13,15 @@ IDENTITY_JWKS_URL=https://example.invalid/.well-known/jwks.json
 # (never in chat logs, commits, or this file) and set it in your local
 # .dev.vars only. See README's "Team 17 Integration" section.
 INTERNSHIP_WEBHOOK_SECRET=
+
+# Assignment 5 — the value Team 17 gave us for their `X-Webhook-Secret`
+# header, sent by POST /v1/integrations/team17/test-send to their
+# /api/webhooks/partner receiver. Exchange privately, never commit the real
+# value. See docs/team17-integration-contract.md.
+TEAM17_OUTBOUND_WEBHOOK_SECRET=
+
+# Assignment 5 — a locally-chosen key (not exchanged with any partner) that
+# gates the /v1/integrations/team17/test-send and /deliveries evidence
+# routes via the X-Integration-Test-Key header. Pick any non-empty value
+# for local dev; never commit the real value used in production.
+INTEGRATION_TEST_KEY=

@@ -15,6 +15,7 @@ interface FakeRow {
 export function createFakeD1() {
   const receivedEvents = new Map<string, FakeRow>()
   const knowledgeSources: FakeRow[] = []
+  const outboundDeliveries = new Map<string, FakeRow>()
 
   function prepare(sql: string) {
     const normalized = sql.replace(/\s+/g, ' ').trim()
@@ -28,6 +29,17 @@ export function createFakeD1() {
               return (receivedEvents.get(eventId) ?? null) as T | null
             }
             throw new Error(`fake-d1: unsupported first() for: ${normalized}`)
+          },
+          async all<T>(): Promise<{ results: T[] }> {
+            if (normalized.startsWith('SELECT * FROM outbound_webhook_deliveries')) {
+              const [partner, limit] = args as [string, number]
+              const results = Array.from(outboundDeliveries.values())
+                .filter((row) => row.partner === partner)
+                .sort((a, b) => (b.attempted_at as string).localeCompare(a.attempted_at as string))
+                .slice(0, limit)
+              return { results: results as T[] }
+            }
+            throw new Error(`fake-d1: unsupported all() for: ${normalized}`)
           },
           async run() {
             if (normalized.startsWith('INSERT INTO received_events')) {
@@ -83,6 +95,44 @@ export function createFakeD1() {
               return { success: true, meta: {}, results: [] }
             }
 
+            if (normalized.startsWith('INSERT INTO outbound_webhook_deliveries')) {
+              const [id, partner, eventId, endpoint, requestPayloadJson, attemptedAt] = args as string[]
+              outboundDeliveries.set(id, {
+                id,
+                partner,
+                event_id: eventId,
+                endpoint,
+                request_payload_json: requestPayloadJson,
+                response_status: null,
+                response_body: null,
+                status: 'pending',
+                attempted_at: attemptedAt,
+                completed_at: null,
+                error_message: null,
+              })
+              return { success: true, meta: {}, results: [] }
+            }
+
+            if (normalized.startsWith('UPDATE outbound_webhook_deliveries SET status')) {
+              const [status, responseStatus, responseBody, completedAt, errorMessage, id] = args as [
+                string,
+                number | null,
+                string | null,
+                string,
+                string | null,
+                string,
+              ]
+              const row = outboundDeliveries.get(id)
+              if (row) {
+                row.status = status
+                row.response_status = responseStatus
+                row.response_body = responseBody
+                row.completed_at = completedAt
+                row.error_message = errorMessage
+              }
+              return { success: true, meta: {}, results: [] }
+            }
+
             throw new Error(`fake-d1: unsupported run() for: ${normalized}`)
           },
         }
@@ -92,6 +142,6 @@ export function createFakeD1() {
 
   return {
     db: { prepare } as unknown as D1Database,
-    _inspect: { receivedEvents, knowledgeSources },
+    _inspect: { receivedEvents, knowledgeSources, outboundDeliveries },
   }
 }

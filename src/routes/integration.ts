@@ -8,15 +8,13 @@ export const integration = new Hono<AppEnv>()
 
 integration.get('/integration/status', (c) => {
   return sendData(c, 200, {
-    service: 'learning-assistant',
-    team: '08',
-    status: 'ready',
-    version: 'v1',
+    service: 'team-08-learning-assistant',
+    team: 'Team 08',
+    status: 'ok',
+    timestamp: new Date().toISOString(),
     integration: {
-      partner: 'internship',
-      inboundWebhookPath: '/v1/webhooks/internship',
-      inboundEventType: 'internship.opportunity.published',
-      outboundEventType: 'learning.questioned',
+      partner: 'team-17-internship',
+      inboundWebhook: '/v1/webhooks/internship',
     },
   })
 })

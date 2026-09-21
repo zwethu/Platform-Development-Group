@@ -8,3 +8,7 @@ README's "Cloudflare D1" section for details).
   `questions`, `answers`, `citations`, `answer_feedback`, and
   `received_events` (the inbound-webhook idempotency ledger), plus their
   indexes.
+- `0002_outbound_webhook_deliveries.sql` — `outbound_webhook_deliveries`
+  (Assignment 5: logs every outbound call this service makes to a partner
+  webhook — currently Team 17's `/api/webhooks/partner` — success or
+  failure), plus its indexes.

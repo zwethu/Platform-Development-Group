@@ -184,7 +184,7 @@ describe('POST /v1/webhooks/internship — accepted + idempotent (mocked D1)', (
     )
     expect(second.status).toBe(200)
     const secondBody = await readDataBody(second)
-    expect(secondBody.data).toEqual({ eventId: 'evt-dup-1', status: 'duplicate', processed: false })
+    expect(secondBody.data).toEqual({ eventId: 'evt-dup-1', status: 'duplicate', processed: false, duplicate: true })
 
     expect(_inspect.knowledgeSources).toHaveLength(1)
   })

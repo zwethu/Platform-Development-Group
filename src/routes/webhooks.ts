@@ -84,7 +84,7 @@ webhooks.post('/webhooks/internship', async (c) => {
 
     const alreadyReceived = await findReceivedEventById(db, eventId)
     if (alreadyReceived) {
-      return sendData(c, 200, { eventId, status: 'duplicate', processed: false })
+      return sendData(c, 200, { eventId, status: 'duplicate', processed: false, duplicate: true })
     }
 
     const receivedAt = new Date().toISOString()
