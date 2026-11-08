@@ -660,21 +660,7 @@ incidental one.
 
 ---
 
-## Appendix A: Team Contribution
-
-*(To be completed by the team — no contributions are claimed here.)*
-
-| Team member | Main responsibility | Evidence / commit / document section |
-|---|---|---|
-| TODO | TODO | TODO |
-| TODO | TODO | TODO |
-| TODO | TODO | TODO |
-| TODO | TODO | TODO |
-| TODO | TODO | TODO |
-
----
-
-## Appendix B: Local Commands
+## Appendix A: Local Commands
 
 ```bash
 # Type check and tests
