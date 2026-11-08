@@ -68,11 +68,12 @@ success as `{ "data": ... }`, errors as
 | Method | Path | Role | Purpose |
 |---|---|---|---|
 | GET | `/v1/health` | none | Liveness check (unauthenticated) |
+| GET | `/v1/health/ready` | none | Deep health: D1 + tables, Workers AI, AI budget (`?probe=ai` makes one real model call) — 200 ok / 503 degraded or down |
 | POST | `/v1/sources` | instructor | Register a knowledge source |
 | PATCH | `/v1/sources/:id` | instructor | Update a source's fields |
 | DELETE | `/v1/sources/:id` | instructor | **Archive** a source (soft delete — see below) |
 | GET | `/v1/courses/:courseId/sources` | student, instructor | List that course's `approved` sources |
-| POST | `/v1/questions` | student | Ask a question; gets a fallback answer + citations |
+| POST | `/v1/questions` | student | Ask a question; gets an AI answer with validated citations, or the keyword fallback |
 | GET | `/v1/questions/:id` | owning student, instructor | Read a question with its answer and citations |
 | POST | `/v1/answers/feedback` | student, instructor | Rate an answer (1–5) |
 | GET | `/v1/integration/status` | none | Public integration status for partner teams (see "Team 17 Integration" below) |
@@ -105,29 +106,27 @@ This never physically removes a row. It sets `status = 'archived'` and
 sources) while preserving history. It's idempotent — archiving an
 already-archived source still returns `200` with that source.
 
-### Fallback question-answering
+### Question answering: AI with a deterministic fallback
 
-`POST /v1/questions` never calls an LLM. It's a deterministic keyword
-search:
+`POST /v1/questions` (Week 12, PRD FR-04/FR-06/FR-07/FR-08/NFR-06):
 
-1. Only `approved` (non-draft, non-archived) knowledge sources for the
-   question's course are searched.
-2. The question is tokenized and matched (case-insensitively) against
-   each source's title, keywords, and content — a title match ranks
-   above a keyword match, which ranks above a content-only match.
-3. If any sources match, an answer is built from their title(s) and a
-   short excerpt of each, with one citation per matched source
-   (`mode: "fallback"`, `noSourceFound: false`), and the question's
-   status becomes `answered`.
-4. If nothing matches, the answer is the fixed message *"I could not
-   find an answer in the approved materials for this course. Please
-   check with your instructor."* with no citations
-   (`noSourceFound: true`), and the question's status becomes
-   `no_source_found`.
+1. Keyword retrieval over the course's `approved` sources only (title, then keywords, then content).
+2. No match → fixed no-source answer, **no model call**, status `no_source_found`.
+3. Otherwise, if `AI_ENABLED` and today's per-course budget (`ai_usage`, migration 0003) allow it, the top 3
+   passages go to **Workers AI** (`AI_MODEL`, free daily allocation) as delimited data under a fixed
+   system prompt (prompt-injection defence, PRD §12.3).
+4. The model output must be JSON citing at least one passage, and only passages that were sent (FR-07).
+   If it says the passages do not answer the question → no-source answer (FR-06).
+5. Any failure (disabled, over budget, 15 s timeout, model error, invalid output or citation) → the
+   original deterministic keyword answer (`mode: "fallback"`), labelled as keyword search (FR-08).
 
-The answer never states anything beyond what a matched source's
-title/excerpt actually contains — it is a citation list with a short
-templated wrapper, not a generated explanation.
+The response includes `generation: { mode, fallbackReason, model }`. Answer and question text are never logged.
+Config lives in `wrangler.jsonc` `vars`: `AI_ENABLED`, `AI_MODEL`, `AI_DAILY_BUDGET_PER_COURSE`, `AI_TIMEOUT_MS`.
+
+**Local development with AI:** `npm run db:migrate:local && npm run dev:local` uses the local D1 file
+(never the team database) with real Workers AI (it has no local simulator, and calls count against the
+logged-in account's free neurons). `node scripts/seed-local.mjs` adds sample sources for course 1305308.
+Week 12 operations material (logs, load test, runbook): [`docs/week12-handover/`](docs/week12-handover/README.md).
 
 ### curl examples
 

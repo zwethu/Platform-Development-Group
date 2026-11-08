@@ -8,12 +8,15 @@ import { integration } from './routes/integration'
 import { webhooks } from './routes/webhooks'
 import { team17Integration } from './routes/team17-integration'
 import { correlationId } from './middleware/correlation-id'
+import { requestLogger } from './middleware/request-logger'
+import { log } from './lib/logger'
 import { jsonError } from './lib/http-error'
 import { sendError } from './lib/http'
 
 const app = new Hono<AppEnv>()
 
 app.use('*', correlationId)
+app.use('*', requestLogger)
 
 const v1 = new Hono<AppEnv>()
 v1.route('/', health) // unauthenticated, unchanged
@@ -29,8 +32,15 @@ app.route('/v1', v1)
 app.notFound((c) => jsonError(c, 404, 'not_found', 'Not found'))
 
 app.onError((err, c) => {
-  console.error('Unhandled request error', err)
-  c.header('x-correlation-id', c.get('correlationId') ?? crypto.randomUUID())
+  const correlationId = c.get('correlationId') ?? crypto.randomUUID()
+  log('error', 'unhandled_error', {
+    correlationId,
+    method: c.req.method,
+    path: c.req.path,
+    error: err instanceof Error ? err.message : String(err),
+    stack: err instanceof Error ? err.stack : undefined,
+  })
+  c.header('x-correlation-id', correlationId)
   return sendError(c, 500, 'INTERNAL_ERROR', 'Something went wrong. Please try again.')
 })
 

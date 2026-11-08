@@ -10,5 +10,38 @@
 			"database_id": "454b5045-d314-4ff1-a351-57971c37963b",
 			"remote": true
 		}
-	]
+	],
+	// Workers AI (free daily allocation, no payment method): generates cited answers.
+	"ai": { "binding": "AI" },
+	"vars": {
+		"AI_ENABLED": "true",
+		"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+		// Per-course daily cap, kept well below the free allocation (PRD NFR-06).
+		"AI_DAILY_BUDGET_PER_COURSE": "300",
+		// PRD NFR-01: abandon the AI path after 15 s and use the fallback.
+		"AI_TIMEOUT_MS": "15000"
+	},
+	// Workers Logs: keeps the structured JSON log lines (PRD NFR-11).
+	"observability": { "enabled": true },
+	"env": {
+		// `npm run dev:local` — local D1 file (never the team database) + real
+		// Workers AI (AI has no local simulator). Used for load tests and demos.
+		"local": {
+			"d1_databases": [
+				{
+					"binding": "learning_assistant_db",
+					"database_name": "learning-assistant-db",
+					"database_id": "454b5045-d314-4ff1-a351-57971c37963b",
+					"remote": false
+				}
+			],
+			"ai": { "binding": "AI", "remote": true },
+			"vars": {
+				"AI_ENABLED": "true",
+				"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+				"AI_DAILY_BUDGET_PER_COURSE": "1000",
+				"AI_TIMEOUT_MS": "15000"
+			}
+		}
+	}
 }

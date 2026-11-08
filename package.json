@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "wrangler dev",
+    "dev:local": "wrangler dev --env local",
+    "db:migrate:local": "wrangler d1 migrations apply learning-assistant-db --local --env local",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "deploy": "wrangler deploy"
