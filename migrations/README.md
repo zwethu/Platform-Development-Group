@@ -17,3 +17,5 @@ README's "Cloudflare D1" section for details).
   that search ranks, with page/slide labels), `instructor_replies`, and new
   nullable columns `knowledge_sources.file_name` / `segment_count` and
   `questions.escalated_at` / `escalation_note`. Additive only.
+- `0005_courses.sql` — `courses` (created by instructors). Turns every course
+  ID already used by a source or question into a course, and adds `CAREER`.

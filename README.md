@@ -68,6 +68,7 @@ ships UI and API together.
 
 | Screen | Who | What it does |
 |---|---|---|
+| Courses | instructor | Create a course (code such as `1305308`, name, description), rename it, archive/restore it, jump to its materials |
 | Ask a question | student | Ask within a course, see the AI answer with clickable `[n]` citations (or the labelled keyword fallback / no-source answer), rate it 1–5 |
 | My questions | student | The student's own questions (from the server), with "Instructor replied" / "New" badges; "Ask my instructor" on any question |
 | Student questions (inbox) | instructor | Questions that need a person (student asked for help, no approved source, or rated ≤ 2/5); reply, and optionally add the reply to course materials as an FAQ |
@@ -118,6 +119,10 @@ success as `{ "data": ... }`, errors as
 | GET | `/v1/health/ready` | none | Deep health: D1 + tables, Workers AI, AI budget (`?probe=ai` makes one real model call) — 200 ok / 503 degraded or down |
 | GET | `/v1/auth/config` | none | Which sign-in mode is active (Student Identity or local demo headers) |
 | GET | `/v1/me` | any signed-in user | The caller's id and Learning Assistant role |
+| GET | `/v1/courses` | student, instructor | Active courses with their number of approved sources (instructors: `?includeArchived=true`) |
+| GET | `/v1/courses/:courseId` | student (active only), instructor | One course |
+| POST | `/v1/courses` | instructor | Create a course: `id` (course code, 2–32 letters/digits/`-`/`_`), `name`, optional `description`. `409 CONFLICT` if the code exists |
+| PATCH | `/v1/courses/:courseId` | instructor | Rename, describe, or set `status` to `archived` / `active`. Archiving hides the course from students and blocks new materials and questions; nothing is deleted |
 | POST | `/v1/sources` | instructor | Register a knowledge source: typed `content`, **or** an uploaded file's text as `fileName` (`.pdf`/`.pptx`/`.docx`) + `segments: [{ location, text }]` |
 | PATCH | `/v1/sources/:id` | instructor | Update a source's fields |
 | DELETE | `/v1/sources/:id` | instructor | **Archive** a source (soft delete — see below) |
@@ -183,6 +188,17 @@ means `identity`, so headers are never trusted in production. Restart
 Every response carries an `x-correlation-id` header (echoing the request's
 own header if it sent one, otherwise a generated id), which also appears inside
 error bodies.
+
+### Courses
+
+Courses are created by instructors in this service (we do not depend on
+another team's course catalog). A knowledge source or a question must name
+an existing, **active** course: an unknown course ID returns `404` (so a typo
+can no longer create an empty "course"), and an archived one returns `400`.
+Migration 0005 turned every course ID already in use into a course (and
+added `CAREER`, which Team 17's webhook fills), so existing data kept working.
+Any instructor can manage any course; per-course instructor assignment is not
+implemented yet.
 
 ### `DELETE /v1/sources/:id` is archive, not delete
 
@@ -453,6 +469,7 @@ service does not reach into any other team's data store either
 
 | Table | Role |
 |---|---|
+| `courses` | Courses created by instructors (migration 0005): `id` is the course code, plus `name`, `description` and `active` \| `archived`. Sources and questions refer to it by `course_id`. |
 | `knowledge_sources` | Instructor/TA-approved learning material for a course (`draft` \| `approved` \| `archived`). Only `approved`, non-archived sources are eligible for retrieval. |
 | `questions` | A student's course-scoped question and its lifecycle status (`pending` \| `answered` \| `no_source_found` \| `failed`). |
 | `answers` | The stored response to a question — `mode` is `ai` or `fallback`, and `no_source_found` flags an honest "nothing approved covers this" result. One answer per question (`question_id` is `UNIQUE`). |
@@ -473,7 +490,7 @@ and validation helpers in `src/lib/constants.ts`.
 ## Project layout
 
 - `src/index.ts` — Hono app entry, wires correlation-id middleware and mounts `/v1` routes
-- `src/routes/` — route modules (`health.ts`, `sources.ts`, `questions.ts`, `replies.ts`, `feedback.ts`, `integration.ts`, `webhooks.ts`)
+- `src/routes/` — route modules (`health.ts`, `courses.ts`, `sources.ts`, `questions.ts`, `replies.ts`, `feedback.ts`, `integration.ts`, `webhooks.ts`)
 - `src/services/chunking.ts` — splits source text / uploaded file segments into passages, plus upload limits
 - `public/file-extract.js` — reads PDF / PPTX / DOCX text in the browser; `public/vendor/` — pdf.js and JSZip
 - `src/middleware/auth.ts` — **temporary** header-based identity + role checks, applied per-route (see API docs above)

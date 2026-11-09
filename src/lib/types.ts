@@ -2,6 +2,19 @@
 // Mirrors migrations/0001_initial_learning_assistant_schema.sql — snake_case
 // in SQL, camelCase here. Keep the two in sync when the schema changes.
 
+export type CourseStatus = 'active' | 'archived'
+
+/** A course created by an instructor (migration 0005). `id` is the course code, e.g. "1305308". */
+export interface Course {
+  id: string
+  name: string
+  description: string | null
+  status: CourseStatus
+  createdBy: string
+  createdAt: string
+  updatedAt: string
+}
+
 export type KnowledgeSourceStatus = 'draft' | 'approved' | 'archived'
 
 export interface KnowledgeSource {

@@ -106,6 +106,8 @@ const state = {
   authMode: 'identity',
   identityUrl: null,
   unreadReplies: 0,
+  // Active courses from GET /v1/courses, loaded once per sign-in (see ensureCourses).
+  courses: null,
 }
 
 // Student Identity session: only the short-lived token (and its expiry) is
@@ -151,6 +153,7 @@ function signOut(message) {
   setIdSession(null)
   state.signedIn = false
   state.unreadReplies = 0
+  resetCourses()
   renderAuthStatus()
   if (message) toast(message, 'bad')
   location.hash = '#/signin'
@@ -264,6 +267,7 @@ const NAV = {
     ['#/status', 'System status'],
   ],
   instructor: [
+    ['#/courses', 'Courses'],
     ['#/sources', 'Knowledge sources'],
     ['#/inbox', 'Student questions'],
     ['#/integration', 'Team 17 integration'],
@@ -277,6 +281,7 @@ const ROUTES = [
   [/^#\/questions$/, () => viewQuestions()],
   [/^#\/questions\/([^/]+)$/, (m) => viewQuestion(decodeURIComponent(m[1]))],
   [/^#\/inbox$/, () => viewInbox()],
+  [/^#\/courses$/, () => viewCourses()],
   [/^#\/sources$/, () => viewSources()],
   [/^#\/integration$/, () => viewIntegration()],
   [/^#\/status$/, () => viewStatus()],
@@ -336,9 +341,66 @@ function route() {
     return
   }
   renderToken += 1
+  const token = renderToken
   renderNav()
   window.scrollTo(0, 0)
+  if (isSignedIn() && state.courses === null) {
+    view().replaceChildren(loading())
+    ensureCourses().then(() => { if (token === renderToken) match[1](match[0]) })
+    return
+  }
   match[1](match[0])
+}
+
+/* ================================================================
+   Courses (created by instructors; every page picks from this list)
+   ================================================================ */
+
+let coursesPromise = null
+
+/** Loads the active courses once; `force` reloads after a change. Picks a valid current course. */
+function ensureCourses(force = false) {
+  if (force) coursesPromise = null
+  if (!coursesPromise) {
+    coursesPromise = api('/v1/courses').then(({ data }) => {
+      state.courses = data.items
+    }).catch(() => {
+      state.courses = []
+      coursesPromise = null // try again on the next page
+    }).then(() => {
+      if (state.courses.length && !state.courses.some((c) => c.id === state.courseId)) {
+        const first = state.courses.find((c) => c.id !== CAREER_COURSE) || state.courses[0]
+        setCourse(first.id)
+      }
+    })
+  }
+  return coursesPromise
+}
+
+function resetCourses() {
+  state.courses = null
+  coursesPromise = null
+}
+
+function currentCourse() {
+  return (state.courses || []).find((c) => c.id === state.courseId) || null
+}
+
+/** A <select> of active courses, or a message when there are none. */
+function courseSelect(id, onChange) {
+  const list = state.courses || []
+  if (!list.length) {
+    return h('div', { class: 'notice notice-warn' }, state.role === 'instructor'
+      ? h('span', null, 'There are no courses yet. ', h('a', { href: '#/courses' }, 'Create the first course'), '.')
+      : 'No courses are available yet. Your instructor has to create one first.')
+  }
+  const select = h('select', { id }, list.map((c) => h('option', { value: c.id }, `${c.id} — ${c.name}`)))
+  select.value = state.courseId
+  select.addEventListener('change', () => {
+    setCourse(select.value)
+    onChange(select.value)
+  })
+  return select
 }
 
 function pageHead(title, subtitle) {
@@ -353,20 +415,8 @@ function loading(text = 'Loading…') {
    Shared pieces: course picker, status pills, answer rendering
    ================================================================ */
 
-function coursePicker(onChange, { label = 'Course ID' } = {}) {
-  const input = h('input', { id: 'course-id', value: state.courseId, required: true, maxlength: 64, spellcheck: 'false', autocomplete: 'off' })
-  const form = h('form', { class: 'field-row', onSubmit: (e) => {
-    e.preventDefault()
-    const value = input.value.trim()
-    if (!value) return
-    setCourse(value)
-    onChange(value)
-  } },
-    h('div', { class: 'field' }, h('label', { for: 'course-id' }, label), input),
-    h('div', { class: 'field' }, h('span', { class: 'label', 'aria-hidden': 'true' }, ' '),
-      h('button', { type: 'submit', class: 'btn btn-secondary' }, 'Load')),
-  )
-  return form
+function coursePicker(onChange, { label = 'Course' } = {}) {
+  return h('div', { class: 'field' }, h('label', { for: 'course-id' }, label), courseSelect('course-id', onChange))
 }
 
 function questionStatusPill(status) {
@@ -545,7 +595,8 @@ function viewAsk() {
   const sourcesPanel = h('div', null, loading())
   const result = h('div', { class: 'stack' })
 
-  const courseInput = h('input', { id: 'ask-course', value: state.courseId, required: true, maxlength: 64, spellcheck: 'false', autocomplete: 'off' })
+  const courseInput = courseSelect('ask-course', (value) => loadSources(value))
+  const hasCourses = Boolean(state.courses && state.courses.length)
   const textarea = h('textarea', { id: 'ask-text', rows: 4, maxlength: QUESTION_MAX, required: true, placeholder: 'e.g. How should a webhook be signed?' })
   const counter = h('div', { class: 'counter', id: 'ask-counter' }, `0 / ${QUESTION_MAX}`)
   const submit = h('button', { type: 'submit', class: 'btn', disabled: !isStudent }, 'Ask')
@@ -559,9 +610,11 @@ function viewAsk() {
 
   async function loadSources(courseId) {
     sourcesPanel.replaceChildren(loading())
+    const course = currentCourse()
     try {
       const { data } = await api(`/v1/courses/${encodeURIComponent(courseId)}/sources`)
       sourcesPanel.replaceChildren(
+        course && course.description ? h('p', { class: 'muted small' }, course.description) : null,
         data.items.length
           ? h('ul', { class: 'compact-list' }, data.items.map((s) => h('li', null, s.title)))
           : h('div', { class: 'empty' }, 'No approved materials in this course yet.'),
@@ -572,14 +625,10 @@ function viewAsk() {
     }
   }
 
-  courseInput.addEventListener('change', () => {
-    const value = courseInput.value.trim()
-    if (value) { setCourse(value); loadSources(value) }
-  })
 
   const form = h('form', { class: 'card', 'aria-labelledby': 'ask-title', onSubmit: async (e) => {
     e.preventDefault()
-    const courseId = courseInput.value.trim()
+    const courseId = state.courseId
     const questionText = textarea.value.trim()
     if (questionText.length < QUESTION_MIN || questionText.length > QUESTION_MAX) {
       textarea.setAttribute('aria-invalid', 'true')
@@ -616,7 +665,7 @@ function viewAsk() {
   } },
     h('h2', { id: 'ask-title' }, 'Ask a question'),
     isStudent ? null : h('div', { class: 'notice notice-warn' }, 'Only students can ask questions. Switch the role at the top to Student.'),
-    h('div', { class: 'field' }, h('label', { for: 'ask-course' }, 'Course ID'), courseInput),
+    h('div', { class: 'field' }, h('label', { for: 'ask-course' }, 'Course'), courseInput),
     h('div', { class: 'field' },
       h('label', { for: 'ask-text' }, 'Your question'),
       textarea,
@@ -632,7 +681,11 @@ function viewAsk() {
       h('aside', { class: 'card', 'aria-labelledby': 'side-title' }, h('h2', { id: 'side-title' }, 'Approved materials'), sourcesPanel),
     ),
   )
-  loadSources(state.courseId)
+  if (hasCourses) loadSources(state.courseId)
+  else {
+    submit.disabled = true
+    sourcesPanel.replaceChildren(h('div', { class: 'empty' }, 'No course selected.'))
+  }
 }
 
 /* ================================================================
@@ -826,6 +879,147 @@ async function viewQuestion(id) {
   } catch (err) {
     mount(token, pageHead('Question'), errorBox(err), back)
   }
+}
+
+/* ================================================================
+   View: Courses (instructor creates, renames and archives courses)
+   ================================================================ */
+
+function viewCourses() {
+  const token = renderToken
+  const listBox = h('div', null, loading())
+  let editing = null
+
+  const f = {
+    id: h('input', { id: 'course-code', required: true, maxlength: 32, pattern: '[A-Za-z0-9][A-Za-z0-9_\\-]{1,31}', spellcheck: 'false', autocomplete: 'off', placeholder: 'e.g. 1305308' }),
+    name: h('input', { id: 'course-name', required: true, maxlength: 120, placeholder: 'e.g. Platform Development' }),
+    description: h('textarea', { id: 'course-desc', rows: 3, maxlength: 500, placeholder: 'Optional — shown to students next to the course materials.' }),
+  }
+  const formTitle = h('h2', { id: 'course-form-title' }, 'Create a course')
+  const submit = h('button', { type: 'submit', class: 'btn' }, 'Create course')
+  const cancel = h('button', { type: 'button', class: 'btn btn-secondary', hidden: true, onClick: () => resetForm() }, 'Cancel')
+  const msg = h('div', { 'aria-live': 'polite' })
+
+  function resetForm() {
+    editing = null
+    f.id.value = ''
+    f.id.disabled = false
+    f.name.value = ''
+    f.description.value = ''
+    formTitle.textContent = 'Create a course'
+    submit.textContent = 'Create course'
+    cancel.hidden = true
+    msg.replaceChildren()
+  }
+
+  function startEdit(course) {
+    editing = course
+    f.id.value = course.id
+    f.id.disabled = true
+    f.name.value = course.name
+    f.description.value = course.description || ''
+    formTitle.textContent = `Edit course ${course.id}`
+    submit.textContent = 'Save changes'
+    cancel.hidden = false
+    msg.replaceChildren()
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    f.name.focus({ preventScroll: true })
+  }
+
+  async function changed(courseId) {
+    await ensureCourses(true)
+    if (courseId) setCourse(courseId)
+    loadList()
+  }
+
+  const form = h('form', { class: 'card', 'aria-labelledby': 'course-form-title', onSubmit: async (e) => {
+    e.preventDefault()
+    const body = { name: f.name.value.trim(), description: f.description.value.trim() || null }
+    const done = busy(submit, editing ? 'Saving…' : 'Creating…')
+    try {
+      if (editing) {
+        await api(`/v1/courses/${encodeURIComponent(editing.id)}`, { method: 'PATCH', body })
+        toast(`Course ${editing.id} updated`)
+        done()
+        resetForm()
+        await changed(null)
+      } else {
+        const { data } = await api('/v1/courses', { method: 'POST', body: { id: f.id.value.trim(), ...body } })
+        done()
+        resetForm()
+        await changed(data.id)
+        msg.replaceChildren(h('div', { class: 'notice notice-ok' },
+          `Course ${data.id} created. `, h('a', { href: '#/sources' }, 'Add its materials now'), '.'))
+      }
+    } catch (err) {
+      done()
+      msg.replaceChildren(errorBox(err))
+    }
+  } },
+    formTitle,
+    h('p', { class: 'muted small' }, 'Create a course, then add its materials (typed notes or PDF / PowerPoint / Word files). Students pick from these courses when they ask.'),
+    h('div', { class: 'field' }, h('label', { for: 'course-code' }, 'Course code'), f.id,
+      h('span', { class: 'hint' }, '2–32 letters, digits, “-” or “_”. Cannot be changed later.')),
+    h('div', { class: 'field' }, h('label', { for: 'course-name' }, 'Course name'), f.name),
+    h('div', { class: 'field' }, h('label', { for: 'course-desc' }, 'Description'), f.description),
+    h('div', { class: 'actions' }, submit, cancel),
+    msg,
+  )
+
+  async function setStatus(course, status, button) {
+    if (status === 'archived' && !confirm(`Archive course ${course.id}?\n\nStudents will no longer see it or be able to ask questions in it. Its materials and past questions are kept, and you can restore it.`)) return
+    const done = busy(button, status === 'archived' ? 'Archiving…' : 'Restoring…')
+    try {
+      await api(`/v1/courses/${encodeURIComponent(course.id)}`, { method: 'PATCH', body: { status } })
+      toast(`Course ${course.id} ${status === 'archived' ? 'archived' : 'restored'}`)
+      await changed(null)
+    } catch (err) {
+      done()
+      toast(err.message, 'bad')
+    }
+  }
+
+  function courseItem(c) {
+    const archived = c.status === 'archived'
+    const materials = h('button', { type: 'button', class: 'btn btn-secondary btn-small', disabled: archived, onClick: () => {
+      setCourse(c.id)
+      location.hash = '#/sources'
+    } }, 'Materials')
+    const edit = h('button', { type: 'button', class: 'btn btn-secondary btn-small', onClick: () => startEdit(c) }, 'Edit')
+    const toggle = h('button', { type: 'button', class: `btn btn-small ${archived ? 'btn-secondary' : 'btn-danger'}` }, archived ? 'Restore' : 'Archive')
+    toggle.addEventListener('click', () => setStatus(c, archived ? 'active' : 'archived', toggle))
+    return h('li', { class: 'list-item' },
+      h('div', { class: 'list-item-head' },
+        h('span', { class: 'list-item-title' }, `${c.id} · ${c.name}`),
+        h('div', { class: 'actions' }, materials, edit, c.id === CAREER_COURSE ? null : toggle),
+      ),
+      c.description ? h('p', { class: 'small muted' }, c.description) : null,
+      h('div', { class: 'meta' },
+        archived ? h('span', { class: 'pill pill-warn' }, 'Archived') : null,
+        h('span', null, `${c.sourceCount} approved source${c.sourceCount === 1 ? '' : 's'}`),
+        h('span', null, c.createdBy === 'migration' || c.createdBy === 'system' ? 'Existing course' : `Created by ${c.createdBy}`),
+        h('span', null, fmtDate(c.createdAt))),
+    )
+  }
+
+  async function loadList() {
+    listBox.replaceChildren(loading())
+    try {
+      const { data } = await api('/v1/courses?includeArchived=true')
+      listBox.replaceChildren(data.items.length
+        ? h('ul', { class: 'list' }, data.items.map(courseItem))
+        : h('div', { class: 'empty' }, 'No courses yet — create the first one.'))
+    } catch (err) {
+      listBox.replaceChildren(errorBox(err))
+    }
+  }
+
+  mount(token,
+    pageHead('Courses', 'Create the courses you teach, then add their materials. Archiving a course hides it from students but keeps its history.'),
+    h('div', { class: 'grid grid-two' }, form,
+      h('section', { class: 'card', 'aria-labelledby': 'course-list-title' }, h('h2', { id: 'course-list-title' }, 'All courses'), listBox)),
+  )
+  loadList()
 }
 
 /* ================================================================
@@ -1418,6 +1612,7 @@ function initIdentity() {
     store.set('la.userId', state.userId)
     toast(`Now acting as ${state.userId} (${state.role})`)
     state.unreadReplies = 0
+    resetCourses()
     refreshUnread()
     if (roleChanged && !NAV[state.role].some(([href]) => href === location.hash)) location.hash = homeRoute()
     else route()

@@ -27,6 +27,7 @@ async function setup() {
     return { status: res.status, data: json.data, error: json.error }
   }
 
+  await call(INSTRUCTOR, 'POST', '/courses', { id: COURSE, name: 'Platform Development' })
   await call(INSTRUCTOR, 'POST', '/sources', {
     courseId: COURSE, title: 'Week 6 — Webhooks', sourceType: 'notes',
     content: 'Webhooks are signed with HMAC-SHA-256 over the raw request body.',

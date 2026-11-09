@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import { sendData, sendError } from '../lib/http'
 import { ValidationError, readJsonBody, requireNonEmptyString } from '../lib/validation'
 import { getDb } from '../lib/db'
+import { CourseUnavailableError, requireActiveCourse, sendCourseError } from './courses'
 import { MAX_QUESTION_LENGTH, MIN_QUESTION_LENGTH } from '../lib/constants'
 import { findChunkMatches, type FallbackMatch } from '../services/fallback-search-service'
 import { AiAnswerError, generateCitedAnswer, type AiAnswer, type AiFailureReason } from '../services/ai-answer-service'
@@ -72,6 +73,7 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
 
     const user = c.get('user')
     const db = getDb(c.env)
+    await requireActiveCourse(db, courseId)
     const now = new Date().toISOString()
 
     const question = await createQuestion(db, {
@@ -169,6 +171,7 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
       generation: { mode, fallbackReason: ai.answer ? null : ai.failure, model: ai.answer?.model ?? null },
     })
   } catch (err) {
+    if (err instanceof CourseUnavailableError) return sendCourseError(c, err)
     if (err instanceof ValidationError) return sendError(c, 400, 'VALIDATION_ERROR', err.message)
     throw err
   }

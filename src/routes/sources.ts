@@ -6,6 +6,7 @@ import { sendData, sendError } from '../lib/http'
 import { ValidationError, optionalKeywords, optionalNullableString, readJsonBody, requireNonEmptyString } from '../lib/validation'
 import { isKnowledgeSourceStatus } from '../lib/constants'
 import { getDb } from '../lib/db'
+import { CourseUnavailableError, requireActiveCourse, sendCourseError } from './courses'
 import {
   ALLOWED_FILE_EXTENSIONS,
   MAX_CHUNKS_PER_SOURCE,
@@ -125,11 +126,14 @@ sources.post('/sources', requireAuth, requireRole('instructor'), async (c) => {
     const content = upload ? null : optionalNullableString(body.content, 'content')
     const chunks = upload ? upload.chunks : textChunks(content)
 
+    const db = getDb(c.env)
+    await requireActiveCourse(db, courseId)
+
     const user = c.get('user')
     const now = new Date().toISOString()
 
     const source = await createSourceWithChunks(
-      getDb(c.env),
+      db,
       {
         id: crypto.randomUUID(),
         courseId,
@@ -151,6 +155,7 @@ sources.post('/sources', requireAuth, requireRole('instructor'), async (c) => {
 
     return sendData(c, 201, { ...source, chunkCount: chunks.length })
   } catch (err) {
+    if (err instanceof CourseUnavailableError) return sendCourseError(c, err)
     if (err instanceof ValidationError) return sendError(c, 400, 'VALIDATION_ERROR', err.message)
     throw err
   }

@@ -69,3 +69,8 @@ export const MAX_REPLY_LENGTH = 2000
 export const MAX_ESCALATION_NOTE_LENGTH = 500
 export const MAX_FAQ_QUESTION_LENGTH = 300
 export const QUESTION_LIST_LIMIT = 50
+
+// Courses (migration 0005). A course code is what students pick, e.g. 1305308.
+export const COURSE_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/
+export const MAX_COURSE_NAME_LENGTH = 120
+export const MAX_COURSE_DESCRIPTION_LENGTH = 500

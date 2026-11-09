@@ -14,6 +14,7 @@ const COURSE = '1305308'
 
 function setup() {
   const { db, query } = createSqliteD1()
+  query(`INSERT INTO courses (id, name, status, created_by, created_at, updated_at) VALUES (?, 'Platform Development', 'active', 'instr-1', '2026-11-01', '2026-11-01')`, COURSE)
   const env = { AUTH_MODE: 'demo-headers', learning_assistant_db: db }
   const call = async (user: { id: string; role: string }, method: string, path: string, body?: unknown) => {
     const res = await app.request(

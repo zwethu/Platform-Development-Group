@@ -63,12 +63,20 @@ class Statement {
   }
 }
 
-export function createSqliteD1() {
+/**
+ * `stopBefore` (a migration file name) leaves that migration and later ones
+ * unapplied until `migrateRest()` is called — for testing what a migration
+ * does to existing rows.
+ */
+export function createSqliteD1(options: { stopBefore?: string } = {}) {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec('PRAGMA foreign_keys = ON')
-  for (const file of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()) {
-    sqlite.exec(readFileSync(join(MIGRATIONS_DIR, file), 'utf8'))
-  }
+  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+  const cut = options.stopBefore ? files.indexOf(options.stopBefore) : files.length
+  if (cut === -1) throw new Error(`no migration named ${options.stopBefore}`)
+  const apply = (list: string[]) => list.forEach((file) => sqlite.exec(readFileSync(join(MIGRATIONS_DIR, file), 'utf8')))
+  apply(files.slice(0, cut))
+  const migrateRest = () => apply(files.slice(cut))
 
   const db = {
     prepare: (sql: string) => new Statement(sqlite, sql),
@@ -93,5 +101,5 @@ export function createSqliteD1() {
   const query = <T = Record<string, unknown>>(sql: string, ...params: unknown[]) =>
     sqlite.prepare(sql).all(...params.map(toSqlValue)) as T[]
 
-  return { db: db as unknown as D1Database, query }
+  return { db: db as unknown as D1Database, query, migrateRest }
 }

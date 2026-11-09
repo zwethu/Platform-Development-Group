@@ -54,6 +54,10 @@
       "value": ""
     },
     {
+      "key": "newCourseId",
+      "value": ""
+    },
+    {
       "key": "noSourceQuestionId",
       "value": ""
     },
@@ -428,7 +432,569 @@
       ]
     },
     {
-      "name": "2. Knowledge sources",
+      "name": "2. Courses",
+      "description": "Instructors create courses; knowledge sources and questions must belong to an existing, active course. The first request makes sure {{courseId}} exists (201 the first time, 409 afterwards). The others create a throw-away course, then archive it.",
+      "item": [
+        {
+          "name": "Ensure the main course exists (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('created (201) or already there (409)', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{courseId}}\",\n  \"name\": \"Platform Development\",\n  \"description\": \"APIs, integration and cloud deployment.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create a new course (instructor)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('newCourseId', 'PM-' + (Date.now() % 1000000));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const c = pm.response.json().data;",
+                  "pm.test('course is active and owned by the caller', () => {",
+                  "  pm.expect(c.id).to.eql(pm.collectionVariables.get('newCourseId'));",
+                  "  pm.expect(c.status).to.eql('active');",
+                  "  pm.expect(c.createdBy).to.eql(pm.variables.get('instructorId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{newCourseId}}\",\n  \"name\": \"Postman Demo Course\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create the same course again → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code is CONFLICT', () => pm.expect(pm.response.json().error.code).to.eql('CONFLICT'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{newCourseId}}\",\n  \"name\": \"Duplicate\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Invalid course code → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"13 05/308\",\n  \"name\": \"Bad code\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create course as student → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"STUDENT-COURSE\",\n  \"name\": \"Not allowed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List courses (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().data.items.map((c) => c.id);",
+                  "pm.test('includes the main and the new course', () => pm.expect(ids).to.include.members([pm.variables.get('courseId'), pm.collectionVariables.get('newCourseId')]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Material for a course that does not exist → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code is NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NOT_FOUND'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"NO-SUCH-COURSE\",\n  \"title\": \"Typo course\",\n  \"sourceType\": \"notes\",\n  \"content\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Question in a course that does not exist → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code is NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NOT_FOUND'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"NO-SUCH-COURSE\",\n  \"questionText\": \"What is REST?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Archive the new course (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('archived', () => pm.expect(pm.response.json().data.status).to.eql('archived'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{newCourseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{newCourseId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"archived\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Archived course hidden from students",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('not listed', () => pm.expect(pm.response.json().data.items.map((c) => c.id)).to.not.include(pm.collectionVariables.get('newCourseId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Question in an archived course → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{newCourseId}}\",\n  \"questionText\": \"What is REST?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Knowledge sources",
       "item": [
         {
           "name": "Create source (instructor)",
@@ -1050,7 +1616,7 @@
       ]
     },
     {
-      "name": "3. Questions",
+      "name": "4. Questions",
       "item": [
         {
           "name": "Ask a question (AI or keyword fallback)",
@@ -1500,7 +2066,7 @@
       ]
     },
     {
-      "name": "4. Answer feedback",
+      "name": "5. Answer feedback",
       "item": [
         {
           "name": "Rate own answer (first time → 201)",
@@ -1824,7 +2390,7 @@
       ]
     },
     {
-      "name": "5. Instructor replies",
+      "name": "6. Instructor replies",
       "description": "\"Ask my instructor\", the instructor inbox, replies, unread badges, and turning a reply into an FAQ source. Uses the no_source_found question from folder 3.",
       "item": [
         {
@@ -2315,7 +2881,7 @@
       ]
     },
     {
-      "name": "6. Archive source",
+      "name": "7. Archive source",
       "item": [
         {
           "name": "Archive source (soft delete)",
@@ -2553,7 +3119,7 @@
       ]
     },
     {
-      "name": "7. Team 17 integration",
+      "name": "8. Team 17 integration",
       "item": [
         {
           "name": "Public integration status",
@@ -2865,7 +3431,7 @@
       ]
     },
     {
-      "name": "8. Auth errors",
+      "name": "9. Auth errors",
       "item": [
         {
           "name": "No identity headers → 401",
@@ -3015,7 +3581,7 @@
       ]
     },
     {
-      "name": "9. Live partner call (manual only)",
+      "name": "10. Live partner call (manual only)",
       "description": "⚠️ Sends a real HTTP request to Team 17's deployed server (https://team17-internship.vercel.app/api/webhooks/partner) and logs it in outbound_webhook_deliveries. Requires TEAM17_OUTBOUND_WEBHOOK_SECRET in .dev.vars (503 without it). Run it deliberately, not as part of the regular collection run.",
       "item": [
         {
