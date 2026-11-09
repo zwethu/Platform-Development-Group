@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learning Assistant · Team 08</title>
+  <meta name="description" content="Ask course questions and get answers cited from instructor-approved materials.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#view" id="skip-link">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#/" aria-label="Learning Assistant home">
+        <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 8l10 5 8-4v6h2V8L12 3Zm-6 9.2V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-3.8l-6 3-6-3Z"/></svg>
+        <span class="brand-text">Learning Assistant <span class="brand-team">Team 08</span></span>
+      </a>
+
+      <form class="identity" id="identity" aria-label="Demo identity">
+        <label class="identity-field">
+          <span class="identity-label">Role</span>
+          <select id="identity-role">
+            <option value="student">Student</option>
+            <option value="instructor">Instructor</option>
+          </select>
+        </label>
+        <label class="identity-field">
+          <span class="identity-label">User ID</span>
+          <input id="identity-user" list="identity-presets" autocomplete="off" spellcheck="false" required maxlength="64">
+          <datalist id="identity-presets">
+            <option value="student-a"></option>
+            <option value="student-b"></option>
+            <option value="instr-1"></option>
+          </datalist>
+        </label>
+        <button type="submit" class="btn btn-small">Switch</button>
+      </form>
+    </div>
+    <nav class="nav" id="nav" aria-label="Main"></nav>
+  </header>
+
+  <p class="demo-banner" role="note">
+    <strong>Demo identity.</strong> The role and user ID above are sent as temporary
+    <code>x-user-id</code> / <code>x-user-role</code> headers — not real authentication
+    (to be replaced by the Student Identity service).
+  </p>
+
+  <main id="view" tabindex="-1" aria-live="polite"></main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <footer class="footer">
+    Team 08 · 1305308 Platform Development · REST API <code>/v1</code> ·
+    <a href="#/status">System status</a>
+  </footer>
+</body>
+</html>

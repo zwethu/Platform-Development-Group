@@ -11,6 +11,9 @@
 			"remote": true
 		}
 	],
+	// Web UI (public/) served as static assets by this same Worker: "/" is the
+	// UI, and any path without a matching file (e.g. /v1/*) runs the API.
+	"assets": { "directory": "./public" },
 	// Workers AI (free daily allocation, no payment method): generates cited answers.
 	"ai": { "binding": "AI" },
 	"vars": {
@@ -40,6 +43,26 @@
 				"AI_ENABLED": "true",
 				"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
 				"AI_DAILY_BUDGET_PER_COURSE": "1000",
+				"AI_TIMEOUT_MS": "15000"
+			}
+		},
+		// `npm run deploy:khant` — a separate deployment on Khant Wai Lin's own
+		// Cloudflare account (its own D1 database and secrets). The top-level
+		// config above stays the original team deployment.
+		"khant": {
+			"name": "learning-assistant-api",
+			"d1_databases": [
+				{
+					"binding": "learning_assistant_db",
+					"database_name": "learning-assistant-db",
+					"database_id": "3cdb3bd4-6d1f-4c1a-b858-4f42bb8eb9e0"
+				}
+			],
+			"ai": { "binding": "AI" },
+			"vars": {
+				"AI_ENABLED": "true",
+				"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
+				"AI_DAILY_BUDGET_PER_COURSE": "300",
 				"AI_TIMEOUT_MS": "15000"
 			}
 		}

@@ -1,0 +1,10 @@
+# Security headers for the static UI (Cloudflare Workers static assets).
+# CSP: only this origin may supply scripts, styles, images and API calls —
+# no inline scripts, no third-party code, no framing (clickjacking).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Cross-Origin-Opener-Policy: same-origin

@@ -12,7 +12,9 @@
     "db:migrate:local": "wrangler d1 migrations apply learning-assistant-db --local --env local",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy --env=\"\"",
+    "deploy:khant": "wrangler deploy --env khant",
+    "db:migrate:khant": "wrangler d1 migrations apply learning-assistant-db --remote --env khant"
   },
   "dependencies": {
     "hono": "^4.6.9"

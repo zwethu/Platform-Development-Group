@@ -3,7 +3,7 @@
 Cloudflare Worker (Hono + TypeScript + D1) for Team 08's Learning Assistant.
 Implements the versioned health check plus the seven `/v1` REST endpoints
 for knowledge sources, questions (with a deterministic fallback answer),
-and answer feedback. See `PRD.md` for the full product spec.
+and answer feedback. See [`md_files/PRD.md`](md_files/PRD.md) for the full product spec.
 
 ## Prerequisites
 
@@ -58,6 +58,32 @@ through Hono without needing the dev server or any Cloudflare resource:
 npm test
 ```
 
+## Web UI
+
+The same Worker serves a small web app from [`public/`](public/) (Workers
+static assets): open the Worker's root URL, e.g. `http://localhost:8787/`
+locally or the `workers.dev` URL once deployed. Any path without a matching
+file (everything under `/v1`) still goes to the API, so `npm run deploy`
+ships UI and API together.
+
+| Screen | Who | What it does |
+|---|---|---|
+| Ask a question | student | Ask within a course, see the AI answer with clickable `[n]` citations (or the labelled keyword fallback / no-source answer), rate it 1–5 |
+| My questions / Questions | student, instructor | Questions asked from this browser; open any question by ID (students: own only) |
+| Knowledge sources / Course materials | instructor edits, student reads | Add, edit and archive approved sources per course |
+| Team 17 integration / Internships | both | Integration status, internships received by webhook (CAREER course); instructors can view and trigger outbound deliveries with the integration test key |
+| System status | both | Deep health (`/v1/health/ready`), optional AI probe |
+
+The role / user ID switcher at the top sends the temporary identity headers
+described below — it is a demo stand-in, not authentication.
+
+Security measures in the UI: everything is rendered with `textContent`
+(never `innerHTML`), only `http(s)` links are rendered, and
+[`public/_headers`](public/_headers) sends a strict Content-Security-Policy
+(same-origin scripts, styles and API calls only; no framing), `nosniff`,
+`X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. Plain
+HTML/CSS/JS — no build step.
+
 ## API
 
 All business routes are under `/v1` and require two temporary identity
@@ -75,7 +101,7 @@ success as `{ "data": ... }`, errors as
 | GET | `/v1/courses/:courseId/sources` | student, instructor | List that course's `approved` sources |
 | POST | `/v1/questions` | student | Ask a question; gets an AI answer with validated citations, or the keyword fallback |
 | GET | `/v1/questions/:id` | owning student, instructor | Read a question with its answer and citations |
-| POST | `/v1/answers/feedback` | student, instructor | Rate an answer (1–5) |
+| POST | `/v1/answers/feedback` | student, instructor | Rate an answer (1–5); a student may only rate answers to their own questions. One rating per user per answer: `201` first time, `200` when changed |
 | GET | `/v1/integration/status` | none | Public integration status for partner teams (see "Team 17 Integration" below) |
 | POST | `/v1/webhooks/internship` | none (signature instead) | Team 17's inbound webhook (see "Team 17 Integration" below) |
 
@@ -311,6 +337,21 @@ lists the most recent ones. See `docs/team17-integration-contract.md` for
 the full contract and `docs/A5-Team08-Integration-Evidence.md` for
 Assignment 5 evidence.
 
+## Deployments
+
+There are two independent deployments, each with its own D1 database and
+secrets (configured in `wrangler.jsonc`):
+
+| Deployment | URL | Command | Account |
+|---|---|---|---|
+| Original team deployment (top-level config) | `https://learning-assistant-api.expense-tracker-api.workers.dev` | `npm run deploy` | teammate's Cloudflare account |
+| `khant` environment | `https://learning-assistant-api.6731503060.workers.dev` | `npm run deploy:khant` (migrations: `npm run db:migrate:khant`) | Khant Wai Lin's Cloudflare account |
+
+Each URL serves the web UI at `/` and the API under `/v1`. Secrets are set per
+deployment with `wrangler secret put <NAME> [--env khant]` and are never
+committed. Team 17 must be given the webhook URL **and** the matching
+`INTERNSHIP_WEBHOOK_SECRET` of whichever deployment they should call.
+
 ## Cloudflare D1
 
 A D1 database is configured in `wrangler.jsonc` (binding `learning_assistant_db`,
@@ -329,7 +370,7 @@ Applying to the remote/production database (`--remote` instead of `--local`)
 requires `npx wrangler login` first and is a deliberate, separate step —
 not part of routine local development.
 
-See `PRD.md` §8 and §14 for the target schema and migration policy, and the
+See `md_files/PRD.md` §8 and §14 for the target schema and migration policy, and the
 Data Model section below for what each table currently holds.
 
 ## Data Model
@@ -345,8 +386,10 @@ service does not reach into any other team's data store either
 | `questions` | A student's course-scoped question and its lifecycle status (`pending` \| `answered` \| `no_source_found` \| `failed`). |
 | `answers` | The stored response to a question — `mode` is `ai` or `fallback`, and `no_source_found` flags an honest "nothing approved covers this" result. One answer per question (`question_id` is `UNIQUE`). |
 | `citations` | Evidence linking an answer back to the `knowledge_sources` excerpt(s) it was grounded in. |
-| `answer_feedback` | A user's helpful/not-helpful style rating (1–5) and optional comment on an answer. |
+| `answer_feedback` | A user's rating (1–5) and optional comment (≤ 500 chars) on an answer. One row per user per answer; rating again updates it. |
 | `received_events` | Idempotency ledger for signed inbound webhooks (e.g. `assignment.published`). A consumer checks whether `event_id` already exists before doing any work; since it's the table's primary key, a duplicate delivery cannot be processed twice. |
+| `outbound_webhook_deliveries` | Log of every outbound Team 17 test-send attempt and its result (migration 0002). Never stores secrets or headers. |
+| `ai_usage` | Per-course, per-UTC-day AI call counter used to enforce `AI_DAILY_BUDGET_PER_COURSE` (migration 0003). |
 
 Migration SQL lives in `migrations/`; the current schema is
 `migrations/0001_initial_learning_assistant_schema.sql`. Shared TypeScript
