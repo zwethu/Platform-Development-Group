@@ -1,0 +1,77 @@
+Learning Assistant — Remote D1 Migration Verification
+========================================================
+Scope: REMOTE production D1 database "learning-assistant-db".
+Tooling: wrangler 4.135.0
+Timestamp: 2026-09-20T17:02Z (UTC)
+Authenticated as: an existing Cloudflare OAuth session already present on
+this machine (account scoped to this project). No credentials, tokens, or
+account identifiers are recorded in this file.
+
+1. Authentication
+------------------
+Command:
+  npx wrangler whoami
+
+Result: already authenticated via a stored OAuth token with the
+required "d1 (write)" scope. No interactive login (npx wrangler login)
+was required for this session.
+
+2. Apply migration to remote
+------------------------------
+Command:
+  npx wrangler d1 migrations apply learning-assistant-db --remote
+
+Result:
+  Resource location: remote
+  "No migrations to apply!"
+
+Interpretation: the remote database had already been migrated to
+0001_initial_learning_assistant_schema.sql prior to this session (its
+migration history already recorded it as applied — most likely from an
+earlier remote deploy by a teammate on this shared repository). No new
+migration ran during this step; this run's contribution was confirming
+that fact and independently verifying the resulting schema below.
+
+3. Remote schema verification
+-------------------------------
+Command:
+  npx wrangler d1 execute learning-assistant-db --remote --command \
+    "SELECT name, type FROM sqlite_master WHERE type IN ('table', 'index') ORDER BY type, name;"
+
+Application tables confirmed present on the REMOTE database (6):
+  answer_feedback
+  answers
+  citations
+  knowledge_sources
+  questions
+  received_events
+
+Explicit indexes confirmed present on the REMOTE database (8):
+  idx_answer_feedback_answer_id
+  idx_citations_answer_id
+  idx_citations_source_id
+  idx_knowledge_sources_course_status
+  idx_knowledge_sources_course_title
+  idx_questions_course_created
+  idx_questions_student_created
+  idx_received_events_type_received
+
+This exactly matches the local schema verified earlier in
+local-schema-verification.txt.
+
+Query metadata (non-sensitive):
+  served_by: v3-prod, region APAC, colo SIN
+  rows_read: 50, rows_written: 0, changed_db: false
+  sql_duration_ms: 0.74
+
+4. Conclusion
+--------------
+The remote "learning-assistant-db" D1 database is confirmed to have the
+full 0001_initial_learning_assistant_schema.sql schema applied (6 tables,
+8 explicit indexes), matching the local migration exactly. No destructive
+or ambiguous action occurred: the "apply" step made zero changes because
+the schema was already current; this verification step is a read-only
+confirmation of that state.
+
+No credentials, API tokens, account IDs, or secrets are recorded in this
+file or elsewhere in the repository.
