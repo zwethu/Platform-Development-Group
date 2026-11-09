@@ -64,6 +64,15 @@ describe('validateModelAnswer (FR-07 / BR-07)', () => {
     })
   })
 
+  it('renumbers markers to match the stored citations when only later passages are cited (FR-04)', () => {
+    expect(
+      validateModelAnswer({ answer: 'Use HMAC [2] and retry with backoff [3]; HMAC again [2].', citations: [2, 3] }, 3),
+    ).toEqual({
+      content: 'Use HMAC [1] and retry with backoff [2]; HMAC again [1].',
+      citedIndexes: [1, 2],
+    })
+  })
+
   it('rejects a citation number that was never sent (invented citation)', () => {
     expect(() => validateModelAnswer({ answer: 'Per the syllabus [3].', citations: [3] }, 2)).toThrow(/passage 3/)
   })

@@ -32,6 +32,13 @@ export const RECEIVED_EVENT_STATUSES: readonly ReceivedEventStatus[] = [
 export const MIN_ANSWER_FEEDBACK_RATING = 1
 export const MAX_ANSWER_FEEDBACK_RATING = 5
 
+// PRD FR-03: a question is 3–1000 characters (after trimming).
+export const MIN_QUESTION_LENGTH = 3
+export const MAX_QUESTION_LENGTH = 1000
+
+// PRD FR-10: optional feedback comment of up to 500 characters.
+export const MAX_FEEDBACK_COMMENT_LENGTH = 500
+
 export function isKnowledgeSourceStatus(value: unknown): value is KnowledgeSourceStatus {
   return typeof value === 'string' && (KNOWLEDGE_SOURCE_STATUSES as readonly string[]).includes(value)
 }

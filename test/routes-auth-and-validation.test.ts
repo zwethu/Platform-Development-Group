@@ -119,6 +119,32 @@ describe('request body validation on /v1/sources (instructor)', () => {
   })
 })
 
+describe('question length validation (FR-03: 3–1000 characters)', () => {
+  const headers = { 'x-user-id': 's1', 'x-user-role': 'student', 'content-type': 'application/json' }
+
+  it('rejects a question shorter than 3 characters before touching the database', async () => {
+    const res = await app.request('/v1/questions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ courseId: 'SE101', questionText: '  a  ' }),
+    })
+
+    expect(res.status).toBe(400)
+    const body = await readErrorBody(res)
+    expect(body.error.code).toBe('VALIDATION_ERROR')
+  })
+
+  it('rejects a question longer than 1000 characters before touching the database', async () => {
+    const res = await app.request('/v1/questions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ courseId: 'SE101', questionText: 'x'.repeat(1001) }),
+    })
+
+    expect(res.status).toBe(400)
+  })
+})
+
 describe('feedback rating validation', () => {
   const headers = { 'x-user-id': 'u1', 'x-user-role': 'student', 'content-type': 'application/json' }
 

@@ -110,7 +110,12 @@ export function validateModelAnswer(raw: unknown, passageCount: number): { conte
       throw new AiAnswerError('invalid_citation', `answer cites passage ${n}, which was not provided`)
     }
   }
-  return { content: answer.trim(), citedIndexes: [...all].sort((a, b) => a - b).map((n) => n - 1) }
+  // Only the cited passages are stored, numbered 1..k in passage order. Renumber
+  // the markers in the text to match, so "[n]" always points at the n-th stored
+  // citation (FR-04) — e.g. citing passages 2 and 3 becomes [1] and [2].
+  const cited = [...all].sort((a, b) => a - b)
+  const content = answer.trim().replace(/\[(\d+)\]/g, (_, n: string) => `[${cited.indexOf(Number(n)) + 1}]`)
+  return { content, citedIndexes: cited.map((n) => n - 1) }
 }
 
 export async function generateCitedAnswer(

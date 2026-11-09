@@ -3,9 +3,10 @@ import type { AppEnv } from '../lib/app-env'
 import { requireAuth } from '../middleware/auth'
 import { sendData, sendError } from '../lib/http'
 import { ValidationError, optionalNullableString, readJsonBody, requireNonEmptyString } from '../lib/validation'
-import { isValidAnswerFeedbackRating } from '../lib/constants'
+import { MAX_FEEDBACK_COMMENT_LENGTH, isValidAnswerFeedbackRating } from '../lib/constants'
 import { getDb } from '../lib/db'
-import { createFeedback, findAnswerExists } from '../repositories/feedback-repository'
+import { findAnswerOwner, upsertFeedback } from '../repositories/feedback-repository'
+import { canViewQuestion } from './questions'
 
 export const feedback = new Hono<AppEnv>()
 
@@ -25,13 +26,22 @@ feedback.post('/answers/feedback', requireAuth, async (c) => {
     const rating = body.rating
 
     const comment = optionalNullableString(body.comment, 'comment')
+    if (comment !== null && comment.length > MAX_FEEDBACK_COMMENT_LENGTH) {
+      throw new ValidationError(`comment must be at most ${MAX_FEEDBACK_COMMENT_LENGTH} characters.`)
+    }
 
     const db = getDb(c.env)
-    const answerExists = await findAnswerExists(db, answerId)
-    if (!answerExists) return sendError(c, 404, 'NOT_FOUND', 'Answer not found.')
+    const owner = await findAnswerOwner(db, answerId)
+    if (!owner) return sendError(c, 404, 'NOT_FOUND', 'Answer not found.')
 
+    // Same rule as reading the question: a student may only rate an answer
+    // to their own question; instructors may rate any answer.
     const user = c.get('user')
-    const created = await createFeedback(db, {
+    if (!canViewQuestion(user, owner)) {
+      return sendError(c, 403, 'FORBIDDEN', 'You do not have access to this answer.')
+    }
+
+    const { feedback: saved, created } = await upsertFeedback(db, {
       id: crypto.randomUUID(),
       answerId,
       userId: user.id,
@@ -40,7 +50,7 @@ feedback.post('/answers/feedback', requireAuth, async (c) => {
       createdAt: new Date().toISOString(),
     })
 
-    return sendData(c, 201, created)
+    return sendData(c, created ? 201 : 200, saved)
   } catch (err) {
     if (err instanceof ValidationError) return sendError(c, 400, 'VALIDATION_ERROR', err.message)
     throw err

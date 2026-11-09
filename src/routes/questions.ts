@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import { sendData, sendError } from '../lib/http'
 import { ValidationError, readJsonBody, requireNonEmptyString } from '../lib/validation'
 import { getDb } from '../lib/db'
+import { MAX_QUESTION_LENGTH, MIN_QUESTION_LENGTH } from '../lib/constants'
 import { findFallbackMatches, type FallbackMatch } from '../services/fallback-search-service'
 import { AiAnswerError, generateCitedAnswer, type AiAnswer, type AiFailureReason } from '../services/ai-answer-service'
 import { tryConsumeAiBudget } from '../repositories/ai-usage-repository'
@@ -53,7 +54,7 @@ async function tryAiAnswer(env: Env, db: D1Database, courseId: string, question:
 }
 
 /** Instructors can read any question; a student may only read their own. */
-export function canViewQuestion(user: AuthUser, question: Question): boolean {
+export function canViewQuestion(user: AuthUser, question: Pick<Question, 'studentId'>): boolean {
   return user.role === 'instructor' || question.studentId === user.id
 }
 
@@ -62,6 +63,11 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
     const body = await readJsonBody(c)
     const courseId = requireNonEmptyString(body.courseId, 'courseId')
     const questionText = requireNonEmptyString(body.questionText, 'questionText')
+    if (questionText.length < MIN_QUESTION_LENGTH || questionText.length > MAX_QUESTION_LENGTH) {
+      throw new ValidationError(
+        `questionText must be between ${MIN_QUESTION_LENGTH} and ${MAX_QUESTION_LENGTH} characters.`,
+      )
+    }
 
     const user = c.get('user')
     const db = getDb(c.env)
@@ -146,7 +152,12 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
     return sendData(c, 201, {
       question: updatedQuestion ?? question,
       answer,
-      citations,
+      // Same shape as GET /v1/questions/:id, so clients can show source titles.
+      citations: citations.map((citation, i) => ({
+        ...citation,
+        sourceTitle: citedMatches[i].source.title,
+        sourceUrl: citedMatches[i].source.sourceUrl,
+      })),
       note: mode === 'ai' ? AI_NOTE : FALLBACK_NOTE,
       generation: { mode, fallbackReason: ai.answer ? null : ai.failure, model: ai.answer?.model ?? null },
     })
