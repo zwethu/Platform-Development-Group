@@ -614,7 +614,8 @@ function viewAsk() {
     try {
       const { data } = await api(`/v1/courses/${encodeURIComponent(courseId)}/sources`)
       sourcesPanel.replaceChildren(
-        course && course.description ? h('p', { class: 'muted small' }, course.description) : null,
+        // replaceChildren (unlike h) prints null as the text "null", so use ''.
+        course && course.description ? h('p', { class: 'muted small' }, course.description) : '',
         data.items.length
           ? h('ul', { class: 'compact-list' }, data.items.map((s) => h('li', null, s.title)))
           : h('div', { class: 'empty' }, 'No approved materials in this course yet.'),
