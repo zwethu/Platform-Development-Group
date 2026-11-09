@@ -63,3 +63,9 @@ export function isValidAnswerFeedbackRating(value: unknown): value is number {
     value <= MAX_ANSWER_FEEDBACK_RATING
   )
 }
+
+// Instructor replies (migration 0004).
+export const MAX_REPLY_LENGTH = 2000
+export const MAX_ESCALATION_NOTE_LENGTH = 500
+export const MAX_FAQ_QUESTION_LENGTH = 300
+export const QUESTION_LIST_LIMIT = 50

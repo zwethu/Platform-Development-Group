@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Learning Assistant API (Team 08)",
-    "description": "Team 08 Learning Assistant — Cloudflare Worker (Hono + D1 + Workers AI).\n\n**Run order matters:** folders are numbered and later requests reuse ids saved by earlier ones (sourceId, questionId, answerId). Use the Collection Runner, or send them top to bottom.\n\n**Before running**\n1. Start the API: `npm run db:migrate:local && npm run dev:local` (local D1 + real Workers AI), or `npx wrangler dev --local` (no AI; answers use the keyword fallback).\n2. Set `baseUrl` to the port wrangler prints (default `http://localhost:8787`; `8788` if 8787 was busy).\n3. `webhookSecret` and `integrationTestKey` must equal `INTERNSHIP_WEBHOOK_SECRET` and `INTEGRATION_TEST_KEY` in your `.dev.vars`. The defaults here are local-only placeholders — never put real secrets in this file.\n\n**Identity:** deployments use Student Identity (Team 01) sign-in — run folder 0 first (see its description); each request then carries the Bearer token of the account it acts as. Local `npm run dev:local` uses demo-headers mode, where the `x-user-id` / `x-user-role` headers are enough.\n\n**Costs:** \"Ask a question\" and \"Deep health with AI probe\" make real Workers AI calls against your free daily allocation. \"Team 17 test-send\" posts to Team 17's live server — it is excluded from routine runs.",
+    "description": "Team 08 Learning Assistant — Cloudflare Worker (Hono + D1 + Workers AI).\n\n**Run order matters:** folders are numbered and later requests reuse ids saved by earlier ones (sourceId, uploadSourceId, questionId, answerId, noSourceQuestionId, faqSourceId). Use the Collection Runner, or send them top to bottom.\n\n**Before running**\n1. Start the API: `npm run db:migrate:local && npm run dev:local` (local D1 + real Workers AI), or `npx wrangler dev --local` (no AI; answers use the keyword fallback).\n2. Set `baseUrl` to the port wrangler prints (default `http://localhost:8787`; `8788` if 8787 was busy).\n3. `webhookSecret` and `integrationTestKey` must equal `INTERNSHIP_WEBHOOK_SECRET` and `INTEGRATION_TEST_KEY` in your `.dev.vars`. The defaults here are local-only placeholders — never put real secrets in this file.\n\n**Identity:** deployments use Student Identity (Team 01) sign-in — run folder 0 first (see its description); each request then carries the Bearer token of the account it acts as. Local `npm run dev:local` uses demo-headers mode, where the `x-user-id` / `x-user-role` headers are enough.\n\n**Costs:** \"Ask a question\" and \"Deep health with AI probe\" make real Workers AI calls against your free daily allocation. \"Team 17 test-send\" posts to Team 17's live server — it is excluded from routine runs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -47,6 +47,18 @@
     },
     {
       "key": "webhookEventId",
+      "value": ""
+    },
+    {
+      "key": "uploadSourceId",
+      "value": ""
+    },
+    {
+      "key": "noSourceQuestionId",
+      "value": ""
+    },
+    {
+      "key": "faqSourceId",
       "value": ""
     },
     {
@@ -724,6 +736,316 @@
               }
             }
           }
+        },
+        {
+          "name": "Upload a file’s text (PPTX slides, instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const s = pm.response.json().data;",
+                  "pm.test('file name and slide count stored, no typed content', () => {",
+                  "  pm.expect(s.fileName).to.eql('week7-queues.pptx');",
+                  "  pm.expect(s.segmentCount).to.eql(4);",
+                  "  pm.expect(s.content).to.eql(null);",
+                  "});",
+                  "pm.test('empty slide skipped → 3 searchable passages', () => pm.expect(s.chunkCount).to.eql(3));",
+                  "pm.collectionVariables.set('uploadSourceId', s.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "description": "What the web UI sends after reading a PDF/PPTX/DOCX in the browser: the file name and its text per page/slide/section. The file itself is never uploaded. Empty slides are skipped.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Postman Demo — Week 7 Message Queues (slides)\",\n  \"sourceType\": \"slides\",\n  \"fileName\": \"week7-queues.pptx\",\n  \"segments\": [\n    {\n      \"location\": \"Slide 1\",\n      \"text\": \"Week 7: Message Queues\"\n    },\n    {\n      \"location\": \"Slide 2\",\n      \"text\": \"Messages that fail repeatedly are moved to a dead letter queue (DLQ) for inspection.\"\n    },\n    {\n      \"location\": \"Slide 3\",\n      \"text\": \"\"\n    },\n    {\n      \"location\": \"Slide 4\",\n      \"text\": \"When consumers fall behind, the queue grows; alert on queue depth.\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Extracted text of the uploaded file (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('passages keep their slide labels', () => pm.expect(d.items.map((c) => c.location)).to.eql(['Slide 1', 'Slide 2', 'Slide 4']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{uploadSourceId}}/chunks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{uploadSourceId}}",
+                "chunks"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload an old .ppt file → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Old deck\",\n  \"sourceType\": \"slides\",\n  \"fileName\": \"old.ppt\",\n  \"segments\": [\n    {\n      \"location\": \"Slide 1\",\n      \"text\": \"x\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Upload a file with no text (scanned) → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));",
+                  "pm.test('explains that scans cannot be searched', () => pm.expect(pm.response.json().error.message).to.include('No text was found'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Scan\",\n  \"sourceType\": \"document\",\n  \"fileName\": \"scan.pdf\",\n  \"segments\": [\n    {\n      \"location\": \"Page 1\",\n      \"text\": \"  \"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Edit an uploaded file’s text → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{uploadSourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{uploadSourceId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"replacement text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Upload as student → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"x\",\n  \"sourceType\": \"slides\",\n  \"fileName\": \"x.pptx\",\n  \"segments\": [\n    {\n      \"location\": \"Slide 1\",\n      \"text\": \"x\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ]
     },
@@ -796,6 +1118,63 @@
           }
         },
         {
+          "name": "Ask about the uploaded slides → cites the slide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('answered', () => pm.expect(d.question.status).to.eql('answered'));",
+                  "pm.test('a citation names the slide it came from', () => {",
+                  "  const c = d.citations.find((x) => x.sourceId === pm.collectionVariables.get('uploadSourceId'));",
+                  "  pm.expect(c, 'citation of the uploaded deck').to.be.an('object');",
+                  "  pm.expect(c.location).to.eql('Slide 2');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"What is a dead letter queue?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "Ask with no matching material → no_source_found",
           "event": [
             {
@@ -809,7 +1188,8 @@
                   "pm.test('no citations and no model call', () => {",
                   "  pm.expect(d.citations).to.have.length(0);",
                   "  pm.expect(d.generation.model).to.eql(null);",
-                  "});"
+                  "});",
+                  "pm.collectionVariables.set('noSourceQuestionId', d.question.id);"
                 ]
               }
             }
@@ -1444,7 +1824,498 @@
       ]
     },
     {
-      "name": "5. Archive source",
+      "name": "5. Instructor replies",
+      "description": "\"Ask my instructor\", the instructor inbox, replies, unread badges, and turning a reply into an FAQ source. Uses the no_source_found question from folder 3.",
+      "item": [
+        {
+          "name": "Ask my instructor (student who asked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('question is escalated with the note', () => {",
+                  "  pm.expect(q.escalatedAt).to.be.a('string');",
+                  "  pm.expect(q.escalationNote).to.eql('The course materials do not mention this.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/escalate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "escalate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"The course materials do not mention this.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Escalate another student's question → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherStudentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/escalate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "escalate"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Instructor inbox (needs a reply)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const item = pm.response.json().data.items.find((i) => i.question.id === pm.collectionVariables.get('noSourceQuestionId'));",
+                  "pm.test('escalated question is in the inbox', () => pm.expect(item).to.be.an('object'));",
+                  "pm.test('with its reasons', () => pm.expect(item.reasons).to.include.members(['asked_instructor', 'no_source_found']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/instructor/inbox?courseId={{courseId}}&filter=open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "instructor",
+                "inbox"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "{{courseId}}"
+                },
+                {
+                  "key": "filter",
+                  "value": "open"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inbox as student → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/instructor/inbox?courseId={{courseId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "instructor",
+                "inbox"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "{{courseId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reply as student → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "replies"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Answering myself\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reply and add it to course materials (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('reply saved, unread', () => pm.expect(d.reply.readAt).to.eql(null));",
+                  "pm.test('FAQ source created in the same course', () => {",
+                  "  pm.expect(d.faqSource.title).to.eql('FAQ: Is photosynthesis covered in this course?');",
+                  "  pm.expect(d.faqSource.courseId).to.eql(pm.variables.get('courseId'));",
+                  "});",
+                  "pm.collectionVariables.set('faqSourceId', d.faqSource.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "replies"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Photosynthesis is not part of 1305308 Platform Development; this course covers APIs, integration and cloud deployment.\",\n  \"addToSources\": true,\n  \"faqQuestion\": \"Is photosynthesis covered in this course?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "My questions shows the unread reply (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const q = d.items.find((i) => i.id === pm.collectionVariables.get('noSourceQuestionId'));",
+                  "pm.test('question has an unread reply', () => pm.expect(q.unreadReplies).to.eql(1));",
+                  "pm.test('badge total counts it', () => pm.expect(d.unreadReplies).to.be.at.least(1));",
+                  "pm.test('only own questions', () => d.items.forEach((i) => pm.expect(i.studentId).to.eql(pm.variables.get('studentId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "questions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Student opens the question → sees the reply",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reply included', () => pm.expect(pm.response.json().data.replies[0].content).to.include('not part of 1305308'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reply is now read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data.items.find((i) => i.id === pm.collectionVariables.get('noSourceQuestionId'));",
+                  "pm.test('no unread replies left on it', () => pm.expect(q.unreadReplies).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "questions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Next student gets the FAQ as a cited answer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('answered from the FAQ', () => {",
+                  "  pm.expect(d.question.status).to.eql('answered');",
+                  "  pm.expect(d.citations.map((c) => c.sourceId)).to.include(pm.collectionVariables.get('faqSourceId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherStudentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"Is photosynthesis covered in this course?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Archive source",
       "item": [
         {
           "name": "Archive source (soft delete)",
@@ -1602,11 +2473,87 @@
               ]
             }
           }
+        },
+        {
+          "name": "Archive the uploaded slides (clean-up)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{uploadSourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{uploadSourceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Archive the FAQ source (clean-up, so re-runs start fresh)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{faqSourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{faqSourceId}}"
+              ]
+            }
+          }
         }
       ]
     },
     {
-      "name": "6. Team 17 integration",
+      "name": "7. Team 17 integration",
       "item": [
         {
           "name": "Public integration status",
@@ -1918,7 +2865,7 @@
       ]
     },
     {
-      "name": "7. Auth errors",
+      "name": "8. Auth errors",
       "item": [
         {
           "name": "No identity headers → 401",
@@ -2068,7 +3015,7 @@
       ]
     },
     {
-      "name": "8. Live partner call (manual only)",
+      "name": "9. Live partner call (manual only)",
       "description": "⚠️ Sends a real HTTP request to Team 17's deployed server (https://team17-internship.vercel.app/api/webhooks/partner) and logs it in outbound_webhook_deliveries. Requires TEAM17_OUTBOUND_WEBHOOK_SECRET in .dev.vars (503 without it). Run it deliberately, not as part of the regular collection run.",
       "item": [
         {

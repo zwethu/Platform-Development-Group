@@ -21,6 +21,8 @@ function source(id: string, title: string, content: string): KnowledgeSource {
     content,
     keywords: null,
     status: 'approved',
+    fileName: null,
+    segmentCount: null,
     createdBy: 'instr',
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',

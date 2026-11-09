@@ -14,6 +14,10 @@ export interface KnowledgeSource {
   content: string | null
   keywords: string | null
   status: KnowledgeSourceStatus
+  /** Original file name when the text was extracted from an uploaded PDF/PPTX/DOCX; null for typed text. */
+  fileName: string | null
+  /** Pages, slides or sections extracted from the uploaded file; null for typed text. */
+  segmentCount: number | null
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -27,6 +31,9 @@ export interface Question {
   studentId: string
   questionText: string
   status: QuestionStatus
+  /** Set when the student asked for an instructor's reply ("Ask my instructor"). */
+  escalatedAt: string | null
+  escalationNote: string | null
   createdAt: string
   updatedAt: string
 }
@@ -50,6 +57,24 @@ export interface Citation {
   location: string | null
   score: number | null
   createdAt: string
+}
+
+/** A passage of a knowledge source (see src/services/chunking.ts). */
+export interface SourceChunk {
+  sourceId: string
+  position: number
+  location: string | null
+  content: string
+}
+
+export interface InstructorReply {
+  id: string
+  questionId: string
+  instructorId: string
+  content: string
+  faqSourceId: string | null
+  createdAt: string
+  readAt: string | null
 }
 
 export interface AnswerFeedback {

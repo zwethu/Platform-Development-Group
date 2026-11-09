@@ -3,12 +3,15 @@ import type { Answer, AnswerMode, Citation, Question, QuestionStatus } from '../
 // Answers and citations are created and read together with their question,
 // so they live in this repository rather than as separate files.
 
-interface QuestionRow {
+export interface QuestionRow {
   id: string
   course_id: string
   student_id: string
   question_text: string
   status: QuestionStatus
+  // Added in migration 0004; undefined when a test double omits them.
+  escalated_at?: string | null
+  escalation_note?: string | null
   created_at: string
   updated_at: string
 }
@@ -36,13 +39,15 @@ interface CitationRow {
 
 export type CitationWithSource = Citation & { sourceTitle: string; sourceUrl: string | null }
 
-function mapQuestion(row: QuestionRow): Question {
+export function mapQuestion(row: QuestionRow): Question {
   return {
     id: row.id,
     courseId: row.course_id,
     studentId: row.student_id,
     questionText: row.question_text,
     status: row.status,
+    escalatedAt: row.escalated_at ?? null,
+    escalationNote: row.escalation_note ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -97,6 +102,8 @@ export async function createQuestion(db: D1Database, input: CreateQuestionInput)
     studentId: input.studentId,
     questionText: input.questionText,
     status: 'pending',
+    escalatedAt: null,
+    escalationNote: null,
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   }

@@ -12,3 +12,8 @@ README's "Cloudflare D1" section for details).
   (Assignment 5: logs every outbound call this service makes to a partner
   webhook — currently Team 17's `/api/webhooks/partner` — success or
   failure), plus its indexes.
+- `0003_ai_usage_budget.sql` — `ai_usage` (per-course daily AI call counter).
+- `0004_source_chunks_and_instructor_replies.sql` — `source_chunks` (passages
+  that search ranks, with page/slide labels), `instructor_replies`, and new
+  nullable columns `knowledge_sources.file_name` / `segment_count` and
+  `questions.escalated_at` / `escalation_note`. Additive only.

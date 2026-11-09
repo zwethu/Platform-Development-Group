@@ -4,6 +4,7 @@ import { health } from './routes/health'
 import { sources } from './routes/sources'
 import { questions } from './routes/questions'
 import { feedback } from './routes/feedback'
+import { replies } from './routes/replies'
 import { integration } from './routes/integration'
 import { webhooks } from './routes/webhooks'
 import { team17Integration } from './routes/team17-integration'
@@ -25,6 +26,7 @@ v1.route('/', auth) // /auth/config (public) and /me (Student Identity sign-in)
 v1.route('/', sources)
 v1.route('/', questions)
 v1.route('/', feedback)
+v1.route('/', replies) // instructor replies, "Ask my instructor", inbox, my questions
 v1.route('/', integration) // public, no temporary auth headers required
 v1.route('/', webhooks) // Team 17 inbound webhook, signature-authenticated instead
 v1.route('/', team17Integration) // Assignment 5 outbound test-send + deliveries, X-Integration-Test-Key gated

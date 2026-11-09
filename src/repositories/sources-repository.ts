@@ -1,4 +1,5 @@
-import type { KnowledgeSource, KnowledgeSourceStatus } from '../lib/types'
+import type { KnowledgeSource, KnowledgeSourceStatus, SourceChunk } from '../lib/types'
+import type { ChunkDraft } from '../services/chunking'
 
 interface SourceRow {
   id: string
@@ -10,9 +11,19 @@ interface SourceRow {
   content: string | null
   keywords: string | null
   status: KnowledgeSourceStatus
+  // Added in migration 0004; undefined when a test double omits them.
+  file_name?: string | null
+  segment_count?: number | null
   created_by: string
   created_at: string
   updated_at: string
+}
+
+interface ChunkRow {
+  source_id: string
+  position: number
+  location: string | null
+  content: string
 }
 
 function mapRow(row: SourceRow): KnowledgeSource {
@@ -26,21 +37,28 @@ function mapRow(row: SourceRow): KnowledgeSource {
     content: row.content,
     keywords: row.keywords,
     status: row.status,
+    fileName: row.file_name ?? null,
+    segmentCount: row.segment_count ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-export type CreateSourceInput = KnowledgeSource
+function mapChunk(row: ChunkRow): SourceChunk {
+  return { sourceId: row.source_id, position: row.position, location: row.location, content: row.content }
+}
 
-export async function createSource(db: D1Database, input: CreateSourceInput): Promise<KnowledgeSource> {
-  await db
-    .prepare(
-      `INSERT INTO knowledge_sources
-        (id, course_id, title, source_type, source_url, storage_key, content, keywords, status, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
+export type CreateSourceInput = Omit<KnowledgeSource, 'fileName' | 'segmentCount'> &
+  Partial<Pick<KnowledgeSource, 'fileName' | 'segmentCount'>>
+
+const INSERT_SOURCE_SQL = `INSERT INTO knowledge_sources
+  (id, course_id, title, source_type, source_url, storage_key, content, keywords, status, created_by, created_at, updated_at, file_name, segment_count)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+function insertSourceStatement(db: D1Database, input: CreateSourceInput): D1PreparedStatement {
+  return db
+    .prepare(INSERT_SOURCE_SQL)
     .bind(
       input.id,
       input.courseId,
@@ -54,10 +72,57 @@ export async function createSource(db: D1Database, input: CreateSourceInput): Pr
       input.createdBy,
       input.createdAt,
       input.updatedAt,
+      input.fileName ?? null,
+      input.segmentCount ?? null,
     )
-    .run()
+}
 
-  return { ...input }
+function withFileFields(input: CreateSourceInput): KnowledgeSource {
+  return { ...input, fileName: input.fileName ?? null, segmentCount: input.segmentCount ?? null }
+}
+
+/** Inserts a source without chunks. Search then uses its `content` column directly (Team 17 webhook). */
+export async function createSource(db: D1Database, input: CreateSourceInput): Promise<KnowledgeSource> {
+  await insertSourceStatement(db, input).run()
+  return withFileFields(input)
+}
+
+// 5 values per chunk row and D1 allows 100 bound parameters per statement.
+const CHUNK_ROWS_PER_STATEMENT = 20
+
+/** Statements that replace all of a source's chunks. Run them inside one db.batch() so it is all-or-nothing. */
+export function replaceChunksStatements(db: D1Database, sourceId: string, chunks: ChunkDraft[]): D1PreparedStatement[] {
+  const statements = [db.prepare(`DELETE FROM source_chunks WHERE source_id = ?`).bind(sourceId)]
+  for (let i = 0; i < chunks.length; i += CHUNK_ROWS_PER_STATEMENT) {
+    const rows = chunks.slice(i, i + CHUNK_ROWS_PER_STATEMENT)
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO source_chunks (id, source_id, position, location, content) VALUES ${rows.map(() => '(?, ?, ?, ?, ?)').join(', ')}`,
+        )
+        .bind(...rows.flatMap((chunk) => [crypto.randomUUID(), sourceId, chunk.position, chunk.location, chunk.content])),
+    )
+  }
+  return statements
+}
+
+/** Source and its chunks are written in one D1 batch: a source never exists with half its text. */
+export function createSourceWithChunksStatements(
+  db: D1Database,
+  input: CreateSourceInput,
+  chunks: ChunkDraft[],
+): D1PreparedStatement[] {
+  // The DELETE in replaceChunksStatements is a no-op for a brand-new source; skip it.
+  return [insertSourceStatement(db, input), ...replaceChunksStatements(db, input.id, chunks).slice(1)]
+}
+
+export async function createSourceWithChunks(
+  db: D1Database,
+  input: CreateSourceInput,
+  chunks: ChunkDraft[],
+): Promise<KnowledgeSource> {
+  await db.batch(createSourceWithChunksStatements(db, input, chunks))
+  return withFileFields(input)
 }
 
 export async function findSourceById(db: D1Database, id: string): Promise<KnowledgeSource | null> {
@@ -76,6 +141,31 @@ export async function listApprovedSourcesByCourse(db: D1Database, courseId: stri
     .all<SourceRow>()
 
   return results.map(mapRow)
+}
+
+/** Every chunk of every approved source in a course — the search corpus for a question. */
+export async function listApprovedChunksByCourse(db: D1Database, courseId: string): Promise<SourceChunk[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT c.source_id, c.position, c.location, c.content
+       FROM source_chunks c
+       JOIN knowledge_sources s ON s.id = c.source_id
+       WHERE s.course_id = ? AND s.status = 'approved'
+       ORDER BY c.source_id, c.position`,
+    )
+    .bind(courseId)
+    .all<ChunkRow>()
+
+  return results.map(mapChunk)
+}
+
+export async function listChunksBySource(db: D1Database, sourceId: string): Promise<SourceChunk[]> {
+  const { results } = await db
+    .prepare(`SELECT source_id, position, location, content FROM source_chunks WHERE source_id = ? ORDER BY position`)
+    .bind(sourceId)
+    .all<ChunkRow>()
+
+  return results.map(mapChunk)
 }
 
 export interface SourcePatch {
@@ -101,11 +191,16 @@ const PATCHABLE_COLUMNS: Record<keyof SourcePatch, string> = {
   status: 'status',
 }
 
+/**
+ * Applies a patch. When `chunks` is given (the text changed), the source's
+ * chunks are replaced in the same D1 batch as the update.
+ */
 export async function updateSource(
   db: D1Database,
   id: string,
   patch: SourcePatch,
   updatedAt: string,
+  chunks?: ChunkDraft[],
 ): Promise<KnowledgeSource | null> {
   const assignments: string[] = []
   const values: unknown[] = []
@@ -120,11 +215,15 @@ export async function updateSource(
   assignments.push('updated_at = ?')
   values.push(updatedAt, id)
 
-  const row = await db
-    .prepare(`UPDATE knowledge_sources SET ${assignments.join(', ')} WHERE id = ? RETURNING *`)
-    .bind(...values)
-    .first<SourceRow>()
+  const update = db.prepare(`UPDATE knowledge_sources SET ${assignments.join(', ')} WHERE id = ? RETURNING *`).bind(...values)
 
+  if (chunks === undefined) {
+    const row = await update.first<SourceRow>()
+    return row ? mapRow(row) : null
+  }
+
+  const [updated] = await db.batch<SourceRow>([update, ...replaceChunksStatements(db, id, chunks)])
+  const row = updated?.results?.[0]
   return row ? mapRow(row) : null
 }
 

@@ -13,6 +13,8 @@ function makeSource(overrides: Partial<KnowledgeSource>): KnowledgeSource {
     content: null,
     keywords: null,
     status: 'approved',
+    fileName: null,
+    segmentCount: null,
     createdBy: 'instructor-1',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -22,7 +24,12 @@ function makeSource(overrides: Partial<KnowledgeSource>): KnowledgeSource {
 
 describe('tokenizeQuestion', () => {
   it('lowercases, splits on punctuation, and de-duplicates terms', () => {
-    expect(tokenizeQuestion('What is REST? What is an API!')).toEqual(['what', 'is', 'rest', 'an', 'api'])
+    expect(tokenizeQuestion('REST? API! rest, Webhooks')).toEqual(['rest', 'api', 'webhooks'])
+  })
+
+  it('drops common words, so "the" alone never counts as a match', () => {
+    expect(tokenizeQuestion('What is REST? What is an API!')).toEqual(['rest', 'api'])
+    expect(tokenizeQuestion('When is the midterm exam?')).toEqual(['midterm', 'exam'])
   })
 
   it('drops single-character noise terms', () => {

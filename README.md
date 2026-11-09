@@ -69,13 +69,34 @@ ships UI and API together.
 | Screen | Who | What it does |
 |---|---|---|
 | Ask a question | student | Ask within a course, see the AI answer with clickable `[n]` citations (or the labelled keyword fallback / no-source answer), rate it 1–5 |
-| My questions / Questions | student, instructor | Questions asked from this browser; open any question by ID (students: own only) |
-| Knowledge sources / Course materials | instructor edits, student reads | Add, edit and archive approved sources per course |
+| My questions | student | The student's own questions (from the server), with "Instructor replied" / "New" badges; "Ask my instructor" on any question |
+| Student questions (inbox) | instructor | Questions that need a person (student asked for help, no approved source, or rated ≤ 2/5); reply, and optionally add the reply to course materials as an FAQ |
+| Knowledge sources / Course materials | instructor edits, student reads | Add, edit and archive approved sources per course — typed text, or an uploaded **PDF / PowerPoint (.pptx) / Word (.docx)** file; anyone can view a file's extracted text |
 | Team 17 integration / Internships | both | Integration status, internships received by webhook (CAREER course); instructors can view and trigger outbound deliveries with the integration test key |
 | System status | both | Deep health (`/v1/health/ready`), optional AI probe |
 
 Users sign in with Student Identity (Team 01) — see "Authentication" below. In
 local `demo-headers` mode the UI shows a role / user ID switcher instead.
+
+### Uploading course files
+
+Instructors can add a PDF, `.pptx` or `.docx` file (up to 25 MB) as a
+knowledge source. The file is read **in the instructor's browser**
+([`public/file-extract.js`](public/file-extract.js)): pdf.js gives the text of
+each page, and PowerPoint/Word files (zip archives of XML) are read with JSZip
+— slide text plus speaker notes per slide, and Word text split at headings.
+Only the extracted text is sent, as `{ fileName, segments: [{ location: "Slide 3", text }] }`;
+the file itself is never uploaded or stored. Both libraries are hosted on
+this origin under [`public/vendor/`](public/vendor) (pdf.js 4.10.38,
+Apache-2.0; JSZip 3.10.1, MIT — checksums verified against the npm registry),
+so the CSP stays same-origin only.
+
+Limits and what is not supported: scanned PDFs (pictures of pages) and
+picture-only slides have no text and are rejected/skipped with a message (no
+OCR); old `.ppt`/`.doc` files must be saved as `.pptx`/`.docx`; text inside
+images or diagrams is not read; at most 250,000 characters, 1,000
+pages/slides and 500 passages per file. To change an uploaded file's text,
+archive it and upload the new version.
 
 Security measures in the UI: everything is rendered with `textContent`
 (never `innerHTML`), only `http(s)` links are rendered, and
@@ -97,12 +118,17 @@ success as `{ "data": ... }`, errors as
 | GET | `/v1/health/ready` | none | Deep health: D1 + tables, Workers AI, AI budget (`?probe=ai` makes one real model call) — 200 ok / 503 degraded or down |
 | GET | `/v1/auth/config` | none | Which sign-in mode is active (Student Identity or local demo headers) |
 | GET | `/v1/me` | any signed-in user | The caller's id and Learning Assistant role |
-| POST | `/v1/sources` | instructor | Register a knowledge source |
+| POST | `/v1/sources` | instructor | Register a knowledge source: typed `content`, **or** an uploaded file's text as `fileName` (`.pdf`/`.pptx`/`.docx`) + `segments: [{ location, text }]` |
 | PATCH | `/v1/sources/:id` | instructor | Update a source's fields |
 | DELETE | `/v1/sources/:id` | instructor | **Archive** a source (soft delete — see below) |
 | GET | `/v1/courses/:courseId/sources` | student, instructor | List that course's `approved` sources |
+| GET | `/v1/sources/:id/chunks` | student (approved only), instructor | The passages a source was split into, with page/slide/section labels |
 | POST | `/v1/questions` | student | Ask a question; gets an AI answer with validated citations, or the keyword fallback |
-| GET | `/v1/questions/:id` | owning student, instructor | Read a question with its answer and citations |
+| GET | `/v1/questions/:id` | owning student, instructor | Read a question with its answer, citations and instructor `replies` (the asking student opening it marks replies read) |
+| POST | `/v1/questions/:id/escalate` | owning student | "Ask my instructor", with an optional `note` (≤ 500 chars) |
+| POST | `/v1/questions/:id/replies` | instructor | Reply (≤ 2,000 chars). `addToSources: true` also saves it as an approved FAQ source in the course; `faqQuestion` rewords the question (the student's ID is never included) |
+| GET | `/v1/me/questions` | student | The caller's own questions, newest first, with `replyCount`, `unreadReplies` and a total |
+| GET | `/v1/instructor/inbox?courseId=&filter=open\|all` | instructor | Questions needing a person: escalated, `no_source_found`/`failed`, or rated ≤ 2 by the asking student. `open` (default) hides replied ones |
 | POST | `/v1/answers/feedback` | student, instructor | Rate an answer (1–5); a student may only rate answers to their own questions. One rating per user per answer: `201` first time, `200` when changed |
 | GET | `/v1/integration/status` | none | Public integration status for partner teams (see "Team 17 Integration" below) |
 | POST | `/v1/webhooks/internship` | none (signature instead) | Team 17's inbound webhook (see "Team 17 Integration" below) |
@@ -170,7 +196,11 @@ already-archived source still returns `200` with that source.
 
 `POST /v1/questions` (Week 12, PRD FR-04/FR-06/FR-07/FR-08/NFR-06):
 
-1. Keyword retrieval over the course's `approved` sources only (title, then keywords, then content).
+1. Keyword retrieval over the course's `approved` sources only (title, then keywords, then passage text).
+   Each source's text is split into passages of about 1,000 characters (`source_chunks`, migration 0004),
+   keeping the page/slide/section label of uploaded files, so the AI reads the passage that matched and the
+   citation says where it is (`location`, e.g. "Slide 14"). At most 2 passages per source, 3 in total.
+   Common words ("the", "is", "what"…) are ignored, so they never make a question look covered.
 2. No match → fixed no-source answer, **no model call**, status `no_source_found`.
 3. Otherwise, if `AI_ENABLED` and today's per-course budget (`ai_usage`, migration 0003) allow it, the top 3
    passages go to **Workers AI** (`AI_MODEL`, free daily allocation) as delimited data under a fixed
@@ -385,6 +415,9 @@ secrets (configured in `wrangler.jsonc`):
 | Original team deployment (top-level config) | `https://learning-assistant-api.expense-tracker-api.workers.dev` | `npm run deploy` | teammate's Cloudflare account |
 | `khant` environment | `https://learning-assistant-api.6731503060.workers.dev` | `npm run deploy:khant` (migrations: `npm run db:migrate:khant`) | Khant Wai Lin's Cloudflare account |
 
+Apply new migrations **before** deploying code that uses them (migration 0004
+is additive, so the previous Worker version keeps working against it).
+
 Each URL serves the web UI at `/` and the API under `/v1`. Secrets are set per
 deployment with `wrangler secret put <NAME> [--env khant]` and are never
 committed. Team 17 must be given the webhook URL **and** the matching
@@ -428,6 +461,8 @@ service does not reach into any other team's data store either
 | `received_events` | Idempotency ledger for signed inbound webhooks (e.g. `assignment.published`). A consumer checks whether `event_id` already exists before doing any work; since it's the table's primary key, a duplicate delivery cannot be processed twice. |
 | `outbound_webhook_deliveries` | Log of every outbound Team 17 test-send attempt and its result (migration 0002). Never stores secrets or headers. |
 | `ai_usage` | Per-course, per-UTC-day AI call counter used to enforce `AI_DAILY_BUDGET_PER_COURSE` (migration 0003). |
+| `source_chunks` | A source's text split into ~1,000-character passages with an optional `location` ("Page 3", "Slide 14"); what search ranks (migration 0004). Sources without chunks (older rows, Team 17 webhook) are searched by their `content`. `knowledge_sources.file_name` / `segment_count` record an uploaded file. |
+| `instructor_replies` | An instructor's reply to a question, the FAQ source made from it (if any), and when the asking student read it (migration 0004). `questions.escalated_at` / `escalation_note` record "Ask my instructor". |
 
 Migration SQL lives in `migrations/`; the current schema is
 `migrations/0001_initial_learning_assistant_schema.sql`. Shared TypeScript
@@ -438,7 +473,9 @@ and validation helpers in `src/lib/constants.ts`.
 ## Project layout
 
 - `src/index.ts` — Hono app entry, wires correlation-id middleware and mounts `/v1` routes
-- `src/routes/` — route modules (`health.ts`, `sources.ts`, `questions.ts`, `feedback.ts`, `integration.ts`, `webhooks.ts`)
+- `src/routes/` — route modules (`health.ts`, `sources.ts`, `questions.ts`, `replies.ts`, `feedback.ts`, `integration.ts`, `webhooks.ts`)
+- `src/services/chunking.ts` — splits source text / uploaded file segments into passages, plus upload limits
+- `public/file-extract.js` — reads PDF / PPTX / DOCX text in the browser; `public/vendor/` — pdf.js and JSZip
 - `src/middleware/auth.ts` — **temporary** header-based identity + role checks, applied per-route (see API docs above)
 - `src/middleware/correlation-id.ts` — `x-correlation-id` generation/echo
 - `src/services/fallback-search-service.ts` — deterministic keyword matching, no LLM
@@ -453,4 +490,4 @@ and validation helpers in `src/lib/constants.ts`.
 - `src/lib/constants.ts` — finite status/mode value sets and validation helpers
 - `src/lib/db.ts` — accessor for this service's D1 binding
 - `migrations/` — D1 migration SQL
-- `test/` — Vitest tests
+- `test/` — Vitest tests (`test/helpers/sqlite-d1.ts` runs the real migrations on Node's built-in SQLite for route tests)

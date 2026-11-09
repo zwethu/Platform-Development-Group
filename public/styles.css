@@ -335,3 +335,44 @@ td code { overflow-wrap: anywhere; }
   .page-head h1 { font-size: 21px; }
   .card { padding: 14px; }
 }
+
+/* ---------- File uploads (knowledge sources) ---------- */
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.field label.dropzone {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px; cursor: pointer;
+  border: 1.5px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-2);
+  font-weight: 400;
+}
+.field label.dropzone:hover { border-color: var(--accent); }
+.field:has(.file-input:focus-visible) .dropzone { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dropzone-title { font-weight: 600; color: var(--accent); }
+.file-summary { margin-top: 10px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.file-summary-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.file-summary-head .btn { margin-left: auto; }
+.file-summary details { margin-top: 8px; }
+.file-summary summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
+.file-name { overflow-wrap: anywhere; min-width: 0; }
+.chip-file { background: var(--accent-soft); color: var(--accent); overflow-wrap: anywhere; }
+.chunk-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.chunk-list li { border-left: 3px solid var(--border); padding-left: 10px; }
+.chunk-loc { font-size: 12px; font-weight: 650; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.citation-loc { margin-left: 8px; font-weight: 500; font-size: 12.5px; color: var(--text-3); }
+
+/* ---------- Instructor replies ---------- */
+.nav-badge {
+  display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px;
+  background: var(--bad); color: var(--surface); font-size: 11.5px; font-weight: 700; line-height: 18px; text-align: center;
+}
+.pill-new { background: var(--bad); color: var(--surface); }
+.replies { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.reply { padding: 12px; border-radius: var(--radius-sm); background: var(--ok-soft); border-left: 3px solid var(--ok); }
+.reply-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reply-who { font-weight: 650; }
+.reply-body { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.escalate { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+.check { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; font-size: 14px; cursor: pointer; }
+.check input { width: auto; margin-top: 3px; flex: none; }
+.segmented { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.seg-btn { border: 0; background: var(--surface); color: var(--text-2); padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+.seg-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 650; }

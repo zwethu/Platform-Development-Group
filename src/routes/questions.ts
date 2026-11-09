@@ -6,11 +6,12 @@ import { sendData, sendError } from '../lib/http'
 import { ValidationError, readJsonBody, requireNonEmptyString } from '../lib/validation'
 import { getDb } from '../lib/db'
 import { MAX_QUESTION_LENGTH, MIN_QUESTION_LENGTH } from '../lib/constants'
-import { findFallbackMatches, type FallbackMatch } from '../services/fallback-search-service'
+import { findChunkMatches, type FallbackMatch } from '../services/fallback-search-service'
 import { AiAnswerError, generateCitedAnswer, type AiAnswer, type AiFailureReason } from '../services/ai-answer-service'
 import { tryConsumeAiBudget } from '../repositories/ai-usage-repository'
 import { log } from '../lib/logger'
-import { listApprovedSourcesByCourse } from '../repositories/sources-repository'
+import { listApprovedChunksByCourse, listApprovedSourcesByCourse } from '../repositories/sources-repository'
+import { listRepliesForQuestion, markRepliesRead } from '../repositories/replies-repository'
 import {
   createAnswerWithCitations,
   createQuestion,
@@ -82,8 +83,11 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
       updatedAt: now,
     })
 
-    const approvedSources = await listApprovedSourcesByCourse(db, courseId)
-    const keywordMatches = findFallbackMatches(approvedSources, questionText)
+    const [approvedSources, approvedChunks] = await Promise.all([
+      listApprovedSourcesByCourse(db, courseId),
+      listApprovedChunksByCourse(db, courseId),
+    ])
+    const keywordMatches = findChunkMatches(approvedSources, approvedChunks, questionText)
 
     // FR-06: no relevant source means no model call and no substantive answer.
     const ai: AiAttempt =
@@ -106,7 +110,10 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
         : [
             'Based on the approved course materials, the following source(s) appear relevant to your question:',
             '',
-            ...matches.map((match, index) => `${index + 1}. ${match.source.title} — "${match.excerpt}"`),
+            ...matches.map(
+              (match, index) =>
+                `${index + 1}. ${match.source.title}${match.location ? ` (${match.location})` : ''} — "${match.excerpt}"`,
+            ),
           ].join('\n')
 
     // AI decision log: outcome, tokens and timing only — never question or answer text (NFR-11).
@@ -140,7 +147,7 @@ questions.post('/questions', requireAuth, requireRole('student'), async (c) => {
         id: crypto.randomUUID(),
         sourceId: match.source.id,
         excerpt: match.excerpt,
-        location: null,
+        location: match.location ?? null,
         score: match.score,
         createdAt: answerCreatedAt,
       })),
@@ -181,7 +188,15 @@ questions.get('/questions/:id', requireAuth, async (c) => {
     return sendError(c, 403, 'FORBIDDEN', 'You do not have access to this question.')
   }
 
-  const { answer, citations } = await findAnswerWithCitationsByQuestionId(db, question.id)
+  const [{ answer, citations }, replies] = await Promise.all([
+    findAnswerWithCitationsByQuestionId(db, question.id),
+    listRepliesForQuestion(db, question.id),
+  ])
 
-  return sendData(c, 200, { question, answer, citations })
+  // The student who asked has now seen any new instructor replies.
+  if (question.studentId === user.id && replies.some((r) => r.readAt === null)) {
+    await markRepliesRead(db, question.id, new Date().toISOString())
+  }
+
+  return sendData(c, 200, { question, answer, citations, replies })
 })

@@ -105,6 +105,7 @@ const state = {
   // Identity (Team 01); 'demo-headers' = local development role switcher.
   authMode: 'identity',
   identityUrl: null,
+  unreadReplies: 0,
 }
 
 // Student Identity session: only the short-lived token (and its expiry) is
@@ -149,6 +150,7 @@ function isSignedIn() {
 function signOut(message) {
   setIdSession(null)
   state.signedIn = false
+  state.unreadReplies = 0
   renderAuthStatus()
   if (message) toast(message, 'bad')
   location.hash = '#/signin'
@@ -159,9 +161,9 @@ function setCourse(courseId) {
   store.set('la.courseId', courseId)
 }
 
-// Questions a user has asked from this browser. There is no "list my
-// questions" endpoint yet, so the UI remembers ids locally and re-reads each
-// one from the API (which re-checks ownership) when opened.
+// Generation details (model, why AI was not used) for questions asked from
+// this browser. The question list itself comes from GET /v1/me/questions;
+// this only adds detail the stored answer does not keep.
 function historyKey() { return `la.history.${state.userId}` }
 function getHistory() { return store.get(historyKey(), []) }
 function addHistory(entry) {
@@ -263,7 +265,7 @@ const NAV = {
   ],
   instructor: [
     ['#/sources', 'Knowledge sources'],
-    ['#/questions', 'Questions'],
+    ['#/inbox', 'Student questions'],
     ['#/integration', 'Team 17 integration'],
     ['#/status', 'System status'],
   ],
@@ -274,6 +276,7 @@ const ROUTES = [
   [/^#\/ask$/, () => viewAsk()],
   [/^#\/questions$/, () => viewQuestions()],
   [/^#\/questions\/([^/]+)$/, (m) => viewQuestion(decodeURIComponent(m[1]))],
+  [/^#\/inbox$/, () => viewInbox()],
   [/^#\/sources$/, () => viewSources()],
   [/^#\/integration$/, () => viewIntegration()],
   [/^#\/status$/, () => viewStatus()],
@@ -295,11 +298,26 @@ const SIGNED_OUT_NAV = [['#/signin', 'Sign in'], ['#/status', 'System status']]
 const PUBLIC_ROUTES = ['#/signin', '#/status']
 
 function renderNav() {
-  const current = location.hash.startsWith('#/questions/') ? '#/questions' : location.hash
+  const current = location.hash.startsWith('#/questions/')
+    ? (state.role === 'instructor' ? '#/inbox' : '#/questions')
+    : location.hash
   document.getElementById('nav').replaceChildren(
-    ...(isSignedIn() ? NAV[state.role] : SIGNED_OUT_NAV).map(([href, label]) =>
-      h('a', { href, 'aria-current': href === current ? 'page' : null }, label)),
+    ...(isSignedIn() ? NAV[state.role] : SIGNED_OUT_NAV).map(([href, label]) => {
+      const unread = href === '#/questions' && state.role === 'student' ? state.unreadReplies : 0
+      return h('a', { href, 'aria-current': href === current ? 'page' : null }, label,
+        unread ? h('span', { class: 'nav-badge', 'aria-label': `${unread} new instructor ${unread === 1 ? 'reply' : 'replies'}` }, String(unread)) : null)
+    }),
   )
+}
+
+/** Updates the "new instructor reply" badge on My questions (students only). */
+async function refreshUnread() {
+  if (!isSignedIn() || state.role !== 'student') return
+  try {
+    const { data } = await api('/v1/me/questions')
+    state.unreadReplies = data.unreadReplies
+    renderNav()
+  } catch { /* the badge is optional */ }
 }
 
 function route() {
@@ -413,7 +431,8 @@ function citationList(citations) {
         h('span', { class: 'citation-num', 'aria-hidden': 'true' }, String(i + 1)),
         h('div', null,
           h('div', { class: 'citation-title' },
-            url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, title) : title),
+            url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, title) : title,
+            c.location ? h('span', { class: 'citation-loc' }, c.location) : null),
           h('blockquote', { class: 'citation-excerpt' }, c.excerpt),
         ),
       )
@@ -583,7 +602,8 @@ function viewAsk() {
       })
       result.replaceChildren(
         answerCard(data),
-        h('p', { class: 'tiny' }, 'Saved to ', h('a', { href: '#/questions' }, 'My questions'), '.'),
+        h('p', { class: 'tiny' }, 'Saved to ', h('a', { href: '#/questions' }, 'My questions'), '. Still stuck? ',
+          h('a', { href: `#/questions/${encodeURIComponent(data.question.id)}` }, 'Ask your instructor about this question'), '.'),
       )
       textarea.value = ''
       counter.textContent = `0 / ${QUESTION_MAX}`
@@ -619,13 +639,9 @@ function viewAsk() {
    View: My questions / open by id
    ================================================================ */
 
-function viewQuestions() {
-  const token = renderToken
-  const isStudent = state.role === 'student'
-  const history = getHistory()
-
+function openByIdForm(isStudent) {
   const idInput = h('input', { id: 'open-id', required: true, spellcheck: 'false', autocomplete: 'off', placeholder: 'Question ID' })
-  const openForm = h('form', { class: 'card', onSubmit: (e) => {
+  return h('form', { class: 'card', onSubmit: (e) => {
     e.preventDefault()
     const id = idInput.value.trim()
     if (id) location.hash = `#/questions/${encodeURIComponent(id)}`
@@ -636,67 +652,279 @@ function viewQuestions() {
       : 'Instructors can open any student’s question.'),
     h('div', { class: 'field-row' },
       h('div', { class: 'field' }, h('label', { for: 'open-id' }, 'Question ID'), idInput),
-      h('div', { class: 'field' }, h('span', { class: 'label', 'aria-hidden': 'true' }, ' '), h('button', { type: 'submit', class: 'btn btn-secondary' }, 'Open')),
+      h('div', { class: 'field' }, h('span', { class: 'label', 'aria-hidden': 'true' }, ' '), h('button', { type: 'submit', class: 'btn btn-secondary' }, 'Open')),
+    ),
+  )
+}
+
+/** Pills describing where a question stands with the instructor. */
+function replyPills(q) {
+  if (q.unreadReplies > 0) return h('span', { class: 'pill pill-new' }, 'New instructor reply')
+  if (q.replyCount > 0) return h('span', { class: 'pill pill-ok' }, 'Instructor replied')
+  if (q.escalatedAt) return h('span', { class: 'pill pill-warn' }, 'Waiting for instructor')
+  return null
+}
+
+function viewQuestions() {
+  const token = renderToken
+  if (state.role === 'instructor') {
+    location.replace('#/inbox')
+    return
+  }
+  const listBox = h('div', null, loading())
+
+  mount(token,
+    pageHead('My questions', `Questions asked as ${state.userId}, newest first. Instructor replies appear here.`),
+    h('div', { class: 'grid grid-main-side' },
+      h('section', { class: 'card', 'aria-labelledby': 'hist-title' },
+        h('h2', { id: 'hist-title' }, 'Your questions'),
+        listBox),
+      openByIdForm(true),
     ),
   )
 
-  const list = history.length
-    ? h('ul', { class: 'list' }, history.map((q) =>
-        h('li', null, h('a', { class: 'list-link', href: `#/questions/${encodeURIComponent(q.id)}` },
-          h('div', { class: 'list-item' },
-            h('div', { class: 'list-item-head' },
-              h('span', { class: 'list-item-title' }, q.questionText),
-              h('div', { class: 'pill-row' },
-                questionStatusPill(q.status),
-                q.generation ? modePill(q.generation.mode) : null),
-            ),
-            h('div', { class: 'meta' }, h('span', null, q.courseId), h('span', null, fmtDate(q.createdAt))),
-          )))))
-    : h('div', { class: 'empty' }, isStudent
-        ? h('span', null, 'No questions yet. ', h('a', { href: '#/ask' }, 'Ask your first question'), '.')
-        : 'Questions you ask as a student from this browser appear here.')
+  api('/v1/me/questions').then(({ data }) => {
+    state.unreadReplies = data.unreadReplies
+    renderNav()
+    listBox.replaceChildren(data.items.length
+      ? h('ul', { class: 'list' }, data.items.map((q) =>
+          h('li', null, h('a', { class: 'list-link', href: `#/questions/${encodeURIComponent(q.id)}` },
+            h('div', { class: 'list-item' },
+              h('div', { class: 'list-item-head' },
+                h('span', { class: 'list-item-title' }, q.questionText),
+                h('div', { class: 'pill-row' },
+                  questionStatusPill(q.status),
+                  q.answerMode ? modePill(q.answerMode) : null,
+                  replyPills(q)),
+              ),
+              h('div', { class: 'meta' }, h('span', null, q.courseId), h('span', null, fmtDate(q.createdAt))),
+            )))))
+      : h('div', { class: 'empty' }, h('span', null, 'No questions yet. ', h('a', { href: '#/ask' }, 'Ask your first question'), '.')))
+  }).catch((err) => listBox.replaceChildren(errorBox(err)))
+}
 
-  mount(token,
-    pageHead(isStudent ? 'My questions' : 'Questions', isStudent
-      ? `Questions asked as ${state.userId} from this browser.`
-      : 'Look up any question and its cited answer by ID.'),
-    h('div', { class: 'grid grid-main-side' },
-      h('section', { class: 'card', 'aria-labelledby': 'hist-title' },
-        h('div', { class: 'card-head' },
-          h('h2', { id: 'hist-title' }, 'Recent questions'),
-          history.length ? h('button', { type: 'button', class: 'btn btn-secondary btn-small', onClick: () => {
-            store.set(historyKey(), [])
-            route()
-          } }, 'Clear list') : null),
-        list),
-      openForm,
-    ),
+function replyItem(r, { showNew }) {
+  return h('li', { class: 'reply' },
+    h('div', { class: 'reply-head' },
+      h('span', { class: 'reply-who' }, `Instructor ${r.instructorId}`),
+      h('span', { class: 'tiny' }, fmtDate(r.createdAt)),
+      showNew && !r.readAt ? h('span', { class: 'pill pill-new' }, 'New') : null,
+      r.faqSourceId ? h('span', { class: 'pill pill-accent' }, 'Added to course materials') : null),
+    h('p', { class: 'reply-body' }, r.content),
+  )
+}
+
+/** "Ask my instructor" for the student who asked; shows the waiting state once asked. */
+function escalatePanel(question) {
+  if (question.escalatedAt) {
+    return h('div', { class: 'notice notice-info' },
+      `You asked your instructor on ${fmtDate(question.escalatedAt)}. Their reply will appear here and in My questions.`,
+      question.escalationNote ? h('div', { class: 'tiny' }, `Your note: ${question.escalationNote}`) : null)
+  }
+  const note = h('textarea', { id: 'esc-note', rows: 2, maxlength: 500, placeholder: 'Optional — what is still unclear?' })
+  const submit = h('button', { type: 'submit', class: 'btn btn-secondary' }, 'Ask my instructor')
+  const msg = h('div', { 'aria-live': 'polite' })
+  return h('form', { class: 'escalate', 'aria-labelledby': 'esc-title', onSubmit: async (e) => {
+    e.preventDefault()
+    const done = busy(submit, 'Sending…')
+    try {
+      const text = note.value.trim()
+      await api(`/v1/questions/${encodeURIComponent(question.id)}/escalate`, { method: 'POST', body: text ? { note: text } : {} })
+      toast('Your instructor will see this question')
+      route()
+    } catch (err) {
+      done()
+      msg.replaceChildren(errorBox(err))
+    }
+  } },
+    h('div', { class: 'section-title', id: 'esc-title' }, 'Still stuck?'),
+    h('p', { class: 'muted small' }, 'Send this question to your instructor. They will see your question and this answer, and can reply to you here.'),
+    h('div', { class: 'field' }, h('label', { for: 'esc-note' }, 'Note for your instructor'), note),
+    h('div', { class: 'actions' }, submit),
+    msg,
+  )
+}
+
+/** Instructor reply form, with the option to publish the answer as an FAQ source. */
+function replyForm(question) {
+  const content = h('textarea', { id: 'reply-text', rows: 5, maxlength: 2000, required: true, placeholder: 'Write your answer to the student.' })
+  const counter = h('div', { class: 'counter' }, '0 / 2000')
+  content.addEventListener('input', () => { counter.textContent = `${content.value.length} / 2000` })
+  const addFaq = h('input', { type: 'checkbox', id: 'reply-faq' })
+  const faqQuestion = h('input', { id: 'reply-faq-q', maxlength: 300, value: question.questionText.slice(0, 300) })
+  const faqBox = h('div', { class: 'field', hidden: true },
+    h('label', { for: 'reply-faq-q' }, 'FAQ question (students will see this wording)'), faqQuestion,
+    h('span', { class: 'hint' }, 'Remove names or personal details. The student’s ID is never added to course materials.'))
+  addFaq.addEventListener('change', () => { faqBox.hidden = !addFaq.checked })
+  const submit = h('button', { type: 'submit', class: 'btn' }, 'Send reply')
+  const msg = h('div', { 'aria-live': 'polite' })
+
+  return h('form', { class: 'card', 'aria-labelledby': 'reply-title', onSubmit: async (e) => {
+    e.preventDefault()
+    const text = content.value.trim()
+    if (!text) return
+    const done = busy(submit, 'Sending…')
+    try {
+      const body = { content: text }
+      if (addFaq.checked) Object.assign(body, { addToSources: true, faqQuestion: faqQuestion.value.trim() })
+      const { data } = await api(`/v1/questions/${encodeURIComponent(question.id)}/replies`, { method: 'POST', body })
+      toast(data.faqSource ? 'Reply sent and added to course materials' : 'Reply sent to the student')
+      route()
+    } catch (err) {
+      done()
+      msg.replaceChildren(errorBox(err))
+    }
+  } },
+    h('h2', { id: 'reply-title' }, 'Reply to the student'),
+    h('div', { class: 'field' }, h('label', { for: 'reply-text' }, 'Your reply'), content, counter),
+    h('label', { class: 'check', for: 'reply-faq' }, addFaq,
+      h('span', null, 'Also add to course materials as an FAQ, so the assistant can answer the next student who asks this.')),
+    faqBox,
+    h('div', { class: 'actions' }, submit),
+    msg,
   )
 }
 
 async function viewQuestion(id) {
   const token = renderToken
+  const isInstructor = state.role === 'instructor'
+  const back = h('p', null, isInstructor
+    ? h('a', { href: '#/inbox' }, '← Back to student questions')
+    : h('a', { href: '#/questions' }, '← Back to my questions'))
   mount(token, pageHead('Question'), loading())
   try {
     const { data } = await api(`/v1/questions/${encodeURIComponent(id)}`)
     const cached = findHistory(id)
+    const { question, replies = [] } = data
+    const isOwner = !isInstructor && question.studentId === state.userId
+
+    const repliesCard = h('section', { class: 'card', 'aria-labelledby': 'replies-title' },
+      h('h2', { id: 'replies-title' }, replies.length ? `Instructor ${replies.length === 1 ? 'reply' : 'replies'}` : 'Instructor reply'),
+      isInstructor ? h('p', { class: 'meta' }, h('span', null, `Asked by ${question.studentId}`), h('span', null, question.courseId)) : null,
+      isInstructor && question.escalatedAt
+        ? h('div', { class: 'notice notice-warn' },
+            `The student asked for your help on ${fmtDate(question.escalatedAt)}.`,
+            question.escalationNote ? h('div', null, `Their note: “${question.escalationNote}”`) : null)
+        : null,
+      replies.length
+        ? h('ol', { class: 'replies' }, replies.map((r) => replyItem(r, { showNew: isOwner })))
+        : h('p', { class: 'muted small' }, isInstructor ? 'No reply yet.' : 'No instructor reply yet.'),
+      isOwner && !replies.length ? escalatePanel(question) : null,
+    )
+
     mount(token,
-      pageHead('Question', `Question ID ${data.question.id}`),
+      pageHead('Question', `Question ID ${question.id}`),
       h('div', { class: 'stack' },
         answerCard({ ...data, generation: cached && cached.generation }),
-        h('p', null, h('a', { href: '#/questions' }, '← Back to questions')),
+        repliesCard,
+        isInstructor ? replyForm(question) : null,
+        back,
       ),
     )
+    // Opening the question marks its replies read on the server; update the badge.
+    if (isOwner && replies.some((r) => !r.readAt)) refreshUnread()
   } catch (err) {
-    mount(token, pageHead('Question'), errorBox(err), h('p', null, h('a', { href: '#/questions' }, '← Back to questions')))
+    mount(token, pageHead('Question'), errorBox(err), back)
   }
+}
+
+/* ================================================================
+   View: Student questions inbox (instructor)
+   ================================================================ */
+
+const INBOX_REASONS = {
+  asked_instructor: ['Student asked for help', 'pill-warn'],
+  no_source_found: ['No approved source', 'pill-warn'],
+  failed: ['Failed', 'pill-bad'],
+  low_rating: [null, 'pill-bad'],
+}
+
+function viewInbox() {
+  const token = renderToken
+  const listBox = h('div', null, loading())
+  let filter = store.get('la.inboxFilter', 'open')
+
+  const tabs = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Show' })
+  function renderTabs() {
+    tabs.replaceChildren(...[['open', 'Needs a reply'], ['all', 'All flagged']].map(([value, label]) =>
+      h('button', { type: 'button', class: 'seg-btn', 'aria-pressed': String(filter === value), onClick: () => {
+        filter = value
+        store.set('la.inboxFilter', value)
+        renderTabs()
+        loadList()
+      } }, label)))
+  }
+
+  async function loadList() {
+    listBox.replaceChildren(loading())
+    try {
+      const { data } = await api(`/v1/instructor/inbox?courseId=${encodeURIComponent(state.courseId)}&filter=${filter}`)
+      listBox.replaceChildren(data.items.length
+        ? h('ul', { class: 'list' }, data.items.map((item) =>
+            h('li', null, h('a', { class: 'list-link', href: `#/questions/${encodeURIComponent(item.question.id)}` },
+              h('div', { class: 'list-item' },
+                h('div', { class: 'list-item-head' },
+                  h('span', { class: 'list-item-title' }, item.question.questionText),
+                  h('div', { class: 'pill-row' },
+                    item.reasons.map((reason) => {
+                      const [label, cls] = INBOX_REASONS[reason] || [reason, '']
+                      return h('span', { class: `pill ${cls}` }, label || `Rated ${item.studentRating}/5`)
+                    }),
+                    item.replyCount ? h('span', { class: 'pill pill-ok' }, 'Replied') : null),
+                ),
+                item.question.escalationNote ? h('p', { class: 'small' }, `“${item.question.escalationNote}”`) : null,
+                h('div', { class: 'meta' },
+                  h('span', null, item.question.studentId),
+                  h('span', null, fmtDate(item.question.escalatedAt || item.question.createdAt))),
+              )))))
+        : h('div', { class: 'empty' }, filter === 'open'
+            ? 'Nothing needs a reply in this course right now.'
+            : 'No flagged questions in this course yet.'),
+        h('p', { class: 'tiny' }, 'Questions appear here when a student asks for help, when no approved material covered them, or when the student rated the answer 2/5 or lower.'))
+    } catch (err) {
+      listBox.replaceChildren(errorBox(err))
+    }
+  }
+
+  mount(token,
+    pageHead('Student questions', 'Questions that need a person. Reply in your own words, and optionally add the answer to course materials.'),
+    h('div', { class: 'grid grid-main-side' },
+      h('section', { class: 'card', 'aria-labelledby': 'inbox-title' },
+        h('div', { class: 'card-head' }, h('h2', { id: 'inbox-title' }, 'Inbox'), tabs),
+        coursePicker(() => loadList()),
+        listBox),
+      openByIdForm(false),
+    ),
+  )
+  renderTabs()
+  loadList()
 }
 
 /* ================================================================
    View: Knowledge sources (instructor manages, student browses)
    ================================================================ */
 
-const SOURCE_TYPES = ['document', 'slides', 'notes', 'link', 'video', 'other']
+const SOURCE_TYPES = ['document', 'slides', 'notes', 'link', 'video', 'faq', 'other']
+
+/** "Show extracted text" for an uploaded file: loads its passages (with page/slide labels) when opened. */
+function extractedText(source) {
+  const body = h('div', null, loading())
+  let loaded = false
+  const details = h('details', null, h('summary', null, 'Show extracted text'), body)
+  details.addEventListener('toggle', async () => {
+    if (!details.open || loaded) return
+    loaded = true
+    try {
+      const { data } = await api(`/v1/sources/${encodeURIComponent(source.id)}/chunks`)
+      body.replaceChildren(h('ol', { class: 'chunk-list' }, data.items.map((c) =>
+        h('li', null, c.location ? h('div', { class: 'chunk-loc' }, c.location) : null, h('p', { class: 'preview' }, c.content)))))
+    } catch (err) {
+      loaded = false
+      body.replaceChildren(errorBox(err))
+    }
+  })
+  return details
+}
 
 function viewSources() {
   const token = renderToken
@@ -711,6 +939,74 @@ function viewSources() {
     content: h('textarea', { id: 'src-content', rows: 6, placeholder: 'Paste the text students should be able to get answers from.' }),
     keywords: h('input', { id: 'src-keywords', placeholder: 'rest, api, http', maxlength: 500 }),
   }
+  // Uploaded file: its text is read in this browser (public/file-extract.js); only the text is sent.
+  let upload = null
+  const fileInput = h('input', { id: 'src-file', type: 'file', accept: window.FileExtract ? FileExtract.ACCEPT : '.pdf,.pptx,.docx', class: 'file-input' })
+  const fileBox = h('div', { 'aria-live': 'polite' })
+  const fileField = h('div', { class: 'field' },
+    h('label', { for: 'src-file' }, 'Upload a file (optional)'),
+    h('label', { class: 'dropzone', for: 'src-file' },
+      h('span', { class: 'dropzone-title' }, 'Choose a PDF, PowerPoint (.pptx) or Word (.docx) file'),
+      h('span', { class: 'hint' }, 'Up to 25 MB. The text is read in your browser; the file itself is not uploaded or stored.')),
+    fileInput,
+    fileBox)
+  const contentField = h('div', { class: 'field' }, h('label', { for: 'src-content' }, 'Content'), f.content,
+    h('span', { class: 'hint' }, 'Answers quote from this text. Or upload a file above instead.'))
+  const fileNote = h('div', { class: 'notice notice-info', hidden: true })
+
+  function clearUpload() {
+    upload = null
+    fileInput.value = ''
+    fileBox.replaceChildren()
+    contentField.hidden = false
+  }
+
+  function showUpload(result) {
+    const { stats } = result
+    const unit = (n) => `${n} ${result.unit}${n === 1 ? '' : 's'}`
+    fileBox.replaceChildren(h('div', { class: 'file-summary' },
+      h('div', { class: 'file-summary-head' },
+        h('span', { class: 'chip' }, result.kind.toUpperCase()),
+        h('strong', { class: 'file-name' }, result.fileName),
+        h('button', { type: 'button', class: 'btn btn-secondary btn-small', onClick: () => { clearUpload(); fileInput.focus() } }, 'Remove')),
+      h('div', { class: 'meta' },
+        h('span', null, unit(stats.segments)),
+        h('span', null, `${stats.words.toLocaleString()} words`)),
+      stats.empty
+        ? h('div', { class: 'notice notice-warn' }, `${unit(stats.empty)} had no text (pictures or scans) and will be skipped.`)
+        : null,
+      h('details', null, h('summary', null, 'Preview extracted text'),
+        h('ol', { class: 'chunk-list' }, result.segments.filter((sg) => sg.text).slice(0, 5).map((sg) =>
+          h('li', null, sg.location ? h('div', { class: 'chunk-loc' }, sg.location) : null,
+            h('p', { class: 'preview' }, sg.text.length > 400 ? `${sg.text.slice(0, 400)}…` : sg.text)))),
+        stats.withText > 5 ? h('p', { class: 'tiny' }, `…and ${stats.withText - 5} more.`) : null),
+    ))
+  }
+
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files && fileInput.files[0]
+    upload = null
+    if (!file) { clearUpload(); return }
+    const progress = h('span', null, `Reading ${file.name}…`)
+    fileBox.replaceChildren(h('div', { class: 'muted actions' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), progress))
+    submit.disabled = true
+    try {
+      if (!window.FileExtract) throw new Error('The file reader did not load. Reload the page and try again.')
+      const result = await FileExtract.extract(file, (n, total) => { progress.textContent = `Reading ${file.name}… page ${n} of ${total}` })
+      upload = result
+      contentField.hidden = true
+      if (!f.title.value.trim()) f.title.value = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim()
+      f.type.value = result.sourceType
+      showUpload(result)
+    } catch (err) {
+      fileInput.value = ''
+      contentField.hidden = false
+      fileBox.replaceChildren(h('div', { class: 'notice notice-warn', role: 'alert' }, err.message || String(err)))
+    } finally {
+      submit.disabled = false
+    }
+  })
+
   const formTitle = h('h2', { id: 'src-form-title' }, 'Add a knowledge source')
   const formMsg = h('div', { 'aria-live': 'polite' })
   const submit = h('button', { type: 'submit', class: 'btn' }, 'Add source')
@@ -723,6 +1019,9 @@ function viewSources() {
     f.url.value = ''
     f.content.value = ''
     f.keywords.value = ''
+    clearUpload()
+    fileField.hidden = false
+    fileNote.hidden = true
     formTitle.textContent = 'Add a knowledge source'
     submit.textContent = 'Add source'
     cancel.hidden = true
@@ -740,6 +1039,13 @@ function viewSources() {
     f.url.value = source.sourceUrl || ''
     f.content.value = source.content || ''
     f.keywords.value = source.keywords || ''
+    clearUpload()
+    fileField.hidden = true
+    contentField.hidden = Boolean(source.fileName)
+    fileNote.hidden = !source.fileName
+    fileNote.textContent = source.fileName
+      ? `The text of this source came from ${source.fileName}. To change it, archive this source and upload the new version.`
+      : ''
     formTitle.textContent = 'Edit knowledge source'
     submit.textContent = 'Save changes'
     cancel.hidden = false
@@ -759,17 +1065,24 @@ function viewSources() {
       title: f.title.value.trim(),
       sourceType: f.type.value,
       sourceUrl: url || null,
-      content: f.content.value.trim() || null,
       keywords: f.keywords.value.split(',').map((k) => k.trim()).filter(Boolean),
     }
-    const done = busy(submit, editing ? 'Saving…' : 'Adding…')
+    if (upload && !editing) {
+      body.fileName = upload.fileName
+      body.segments = upload.segments
+    } else if (!(editing && editing.fileName)) {
+      body.content = f.content.value.trim() || null
+    }
+    const done = busy(submit, editing ? 'Saving…' : upload ? 'Uploading…' : 'Adding…')
     try {
       if (editing) {
         await api(`/v1/sources/${encodeURIComponent(editing.id)}`, { method: 'PATCH', body })
         toast('Source updated')
       } else {
-        await api('/v1/sources', { method: 'POST', body: { courseId: state.courseId, ...body } })
-        toast('Source added and approved')
+        const { data } = await api('/v1/sources', { method: 'POST', body: { courseId: state.courseId, ...body } })
+        toast(data.fileName
+          ? `${data.fileName} added — ${data.chunkCount} passage${data.chunkCount === 1 ? '' : 's'} searchable`
+          : 'Source added and approved')
       }
       done()
       resetForm()
@@ -786,8 +1099,9 @@ function viewSources() {
       h('div', { class: 'field' }, h('label', { for: 'src-type' }, 'Type'), f.type),
       h('div', { class: 'field' }, h('label', { for: 'src-url' }, 'Link (optional)'), f.url),
     ),
-    h('div', { class: 'field' }, h('label', { for: 'src-content' }, 'Content'), f.content,
-      h('span', { class: 'hint' }, 'Answers quote from this text.')),
+    fileNote,
+    fileField,
+    contentField,
     h('div', { class: 'field' }, h('label', { for: 'src-keywords' }, 'Keywords'), f.keywords,
       h('span', { class: 'hint' }, 'Comma-separated. Helps keyword matching.')),
     h('div', { class: 'actions' }, submit, cancel),
@@ -820,12 +1134,13 @@ function viewSources() {
       ),
       h('div', { class: 'meta' },
         h('span', { class: 'chip' }, s.sourceType),
+        s.fileName ? h('span', { class: 'chip chip-file' }, `${s.fileName}${s.segmentCount ? ` · ${s.segmentCount} ${s.sourceType === 'slides' ? 'slides' : 'pages/sections'}` : ''}`) : null,
         s.keywords ? h('span', null, `Keywords: ${s.keywords}`) : null,
         h('span', null, `Updated ${fmtDate(s.updatedAt)}`),
         isInstructor ? h('span', null, `by ${s.createdBy}`) : null,
       ),
       url ? h('div', { class: 'meta' }, h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, url)) : null,
-      s.content ? h('details', null, h('summary', null, 'Show content'), h('p', { class: 'preview' }, s.content)) : null,
+      s.fileName ? extractedText(s) : s.content ? h('details', null, h('summary', null, 'Show content'), h('p', { class: 'preview' }, s.content)) : null,
     )
   }
 
@@ -1102,6 +1417,8 @@ function initIdentity() {
     store.set('la.role', state.role)
     store.set('la.userId', state.userId)
     toast(`Now acting as ${state.userId} (${state.role})`)
+    state.unreadReplies = 0
+    refreshUnread()
     if (roleChanged && !NAV[state.role].some(([href]) => href === location.hash)) location.hash = homeRoute()
     else route()
   })
@@ -1138,6 +1455,7 @@ async function loadSignedInUser() {
   state.role = data.role
   state.signedIn = true
   renderAuthStatus()
+  refreshUnread()
 }
 
 function viewSignIn() {
@@ -1229,6 +1547,7 @@ async function boot() {
   if (state.authMode === 'demo-headers') {
     state.signedIn = true
     initIdentity()
+    refreshUnread()
   } else if (getIdSession()) {
     try {
       await loadSignedInUser() // restores a sign-in that is still valid in this tab

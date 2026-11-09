@@ -67,8 +67,10 @@ export const SYSTEM_PROMPT = [
 export function buildUserMessage(question: string, matches: FallbackMatch[]): string {
   const passages = matches
     .map((m, i) => {
-      const text = (m.source.content ?? m.source.keywords ?? m.source.title).slice(0, PASSAGE_MAX_CHARS)
-      return `<passage number="${i + 1}" title="${m.source.title.replace(/"/g, "'")}">\n${text}\n</passage>`
+      // The matched chunk when there is one; older sources without chunks use their whole content.
+      const text = (m.passage ?? m.source.content ?? m.source.keywords ?? m.source.title).slice(0, PASSAGE_MAX_CHARS)
+      const label = m.location ? `${m.source.title} — ${m.location}` : m.source.title
+      return `<passage number="${i + 1}" title="${label.replace(/"/g, "'")}">\n${text}\n</passage>`
     })
     .join('\n')
   return `<passages>\n${passages}\n</passages>\n\n<question>\n${question}\n</question>`

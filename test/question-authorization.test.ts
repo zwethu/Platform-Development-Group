@@ -9,6 +9,8 @@ function makeQuestion(overrides: Partial<Question> = {}): Question {
     studentId: 'student-a',
     questionText: 'What is REST?',
     status: 'answered',
+    escalatedAt: null,
+    escalationNote: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

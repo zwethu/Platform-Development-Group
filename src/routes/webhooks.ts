@@ -130,6 +130,8 @@ webhooks.post('/webhooks/internship', async (c) => {
         content: contentParts.join(' '),
         keywords,
         status: 'approved',
+        fileName: null,
+        segmentCount: null,
         createdBy: EXPECTED_SOURCE,
         createdAt: now,
         updatedAt: now,
