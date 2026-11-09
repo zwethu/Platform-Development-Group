@@ -74,8 +74,8 @@ ships UI and API together.
 | Team 17 integration / Internships | both | Integration status, internships received by webhook (CAREER course); instructors can view and trigger outbound deliveries with the integration test key |
 | System status | both | Deep health (`/v1/health/ready`), optional AI probe |
 
-The role / user ID switcher at the top sends the temporary identity headers
-described below — it is a demo stand-in, not authentication.
+Users sign in with Student Identity (Team 01) — see "Authentication" below. In
+local `demo-headers` mode the UI shows a role / user ID switcher instead.
 
 Security measures in the UI: everything is rendered with `textContent`
 (never `innerHTML`), only `http(s)` links are rendered, and
@@ -86,8 +86,8 @@ HTML/CSS/JS — no build step.
 
 ## API
 
-All business routes are under `/v1` and require two temporary identity
-headers (see "Temporary identity headers" below). Responses are JSON:
+All business routes are under `/v1` and require a Student Identity sign-in
+token (see "Authentication" below). Responses are JSON:
 success as `{ "data": ... }`, errors as
 `{ "error": { "code", "message", "correlationId" } }`.
 
@@ -95,6 +95,8 @@ success as `{ "data": ... }`, errors as
 |---|---|---|---|
 | GET | `/v1/health` | none | Liveness check (unauthenticated) |
 | GET | `/v1/health/ready` | none | Deep health: D1 + tables, Workers AI, AI budget (`?probe=ai` makes one real model call) — 200 ok / 503 degraded or down |
+| GET | `/v1/auth/config` | none | Which sign-in mode is active (Student Identity or local demo headers) |
+| GET | `/v1/me` | any signed-in user | The caller's id and Learning Assistant role |
 | POST | `/v1/sources` | instructor | Register a knowledge source |
 | PATCH | `/v1/sources/:id` | instructor | Update a source's fields |
 | DELETE | `/v1/sources/:id` | instructor | **Archive** a source (soft delete — see below) |
@@ -105,24 +107,56 @@ success as `{ "data": ... }`, errors as
 | GET | `/v1/integration/status` | none | Public integration status for partner teams (see "Team 17 Integration" below) |
 | POST | `/v1/webhooks/internship` | none (signature instead) | Team 17's inbound webhook (see "Team 17 Integration" below) |
 
-### Temporary identity headers
+### Authentication: Student Identity sign-in (Team 01)
 
-**This is a temporary stand-in for real Student Identity integration —
-not real authentication.** There is no signature or token check; any
-caller can claim any identity. It exists only to unblock this vertical
-slice and must be replaced with real Identity/JWT verification (PRD.md
-FR-01 / NFR-03) before this goes anywhere beyond the course project.
+Users sign in with their **Student Identity** account (Team 01,
+`https://student-identity.onrender.com`). The browser sends the student ID and
+password **directly to Student Identity**, which returns a short-lived token;
+the Learning Assistant never receives or stores passwords. Every `/v1` call
+then carries:
 
-Every `/v1` route except `/v1/health` requires:
+```
+Authorization: Bearer <Student Identity token>
+```
 
-- `x-user-id`: any non-empty string — used as the caller's user id (never
-  taken from the request body)
-- `x-user-role`: `student` or `instructor`
+The server accepts a token only after Student Identity vouches for it
+(`GET /me` on their service answers 200 for a genuine, unexpired,
+non-suspended token — they publish no signing keys to check it ourselves).
+The verified token's `sub` becomes the user id and its `role` is mapped:
 
-Missing or invalid headers return `401 UNAUTHORIZED`; a role not allowed
-on that route returns `403 FORBIDDEN`. Every response also carries an
-`x-correlation-id` header (echoing the request's own header if it sent
-one, otherwise a generated id), which also appears inside error bodies.
+| Student Identity role | Learning Assistant role |
+|---|---|
+| `student` | student |
+| `instructor`, `staff`, `admin` | instructor |
+| a `sub` listed in `INSTRUCTOR_IDS` | instructor |
+| anything else | `403 FORBIDDEN` |
+
+Student Identity decides **who** you are; the Learning Assistant decides
+**what** you may do. `INSTRUCTOR_IDS` (comma-separated student IDs) is set as a
+secret — `npx wrangler secret put INSTRUCTOR_IDS --env khant` — so student IDs
+never land in git. Successful checks are cached per Worker instance for at most
+60 s; tokens and the profile data `/me` returns are never logged or stored.
+
+| Situation | Response |
+|---|---|
+| No / malformed `Authorization` header | `401 UNAUTHORIZED` |
+| Token rejected by Student Identity, expired, or edited | `401 UNAUTHORIZED` |
+| Student Identity unreachable or failing | `503 DEPENDENCY_UNAVAILABLE` |
+| Valid token, role not allowed on that route | `403 FORBIDDEN` |
+
+`GET /v1/auth/config` (public) tells clients which mode is active;
+`GET /v1/me` returns the signed-in user as the Learning Assistant sees them.
+
+**Local development only — `demo-headers` mode.** With `AUTH_MODE=demo-headers`
+(set for `npm run dev:local` in `wrangler.jsonc`), the unsigned
+`x-user-id` / `x-user-role` headers are accepted instead and the UI shows a
+role switcher. Deployments set `AUTH_MODE=identity`, and an unset value also
+means `identity`, so headers are never trusted in production. Restart
+`npm run dev:local` after changing `wrangler.jsonc`.
+
+Every response carries an `x-correlation-id` header (echoing the request's
+own header if it sent one, otherwise a generated id), which also appears inside
+error bodies.
 
 ### `DELETE /v1/sources/:id` is archive, not delete
 
@@ -155,6 +189,10 @@ logged-in account's free neurons). `node scripts/seed-local.mjs` adds sample sou
 Week 12 operations material (logs, load test, runbook): [`docs/week12-handover/`](docs/week12-handover/README.md).
 
 ### curl examples
+
+These use local `demo-headers` mode (`npm run dev:local`). Against a
+deployment, replace the two `x-user-*` headers with
+`-H 'Authorization: Bearer <Student Identity token>'`.
 
 Create a knowledge source (instructor):
 

@@ -14,6 +14,12 @@
 import { describe, expect, it } from 'vitest'
 import app from '../src/index'
 
+// These tests exercise routing, roles and validation, so they opt in to the
+// unsigned demo headers explicitly. Real Student Identity sign-in is covered
+// in test/identity-auth.test.ts.
+const DEMO_ENV = { AUTH_MODE: 'demo-headers' }
+const request = (path: string, init?: RequestInit) => app.request(path, init, DEMO_ENV)
+
 interface ErrorBody {
   error: { code: string; message: string; correlationId?: string }
 }
@@ -24,7 +30,7 @@ async function readErrorBody(res: Response): Promise<ErrorBody> {
 
 describe('temporary identity headers', () => {
   it('rejects a request with no identity headers at all', async () => {
-    const res = await app.request('/v1/questions/does-not-matter')
+    const res = await request('/v1/questions/does-not-matter')
 
     expect(res.status).toBe(401)
     const body = await readErrorBody(res)
@@ -32,7 +38,7 @@ describe('temporary identity headers', () => {
   })
 
   it('rejects a request missing x-user-role', async () => {
-    const res = await app.request('/v1/questions/does-not-matter', {
+    const res = await request('/v1/questions/does-not-matter', {
       headers: { 'x-user-id': 'u1' },
     })
 
@@ -40,7 +46,7 @@ describe('temporary identity headers', () => {
   })
 
   it('rejects an invalid x-user-role value', async () => {
-    const res = await app.request('/v1/questions/does-not-matter', {
+    const res = await request('/v1/questions/does-not-matter', {
       headers: { 'x-user-id': 'u1', 'x-user-role': 'admin' },
     })
 
@@ -52,7 +58,7 @@ describe('role restrictions on /v1/sources', () => {
   const studentHeaders = { 'x-user-id': 's1', 'x-user-role': 'student' }
 
   it('forbids a student from creating a source', async () => {
-    const res = await app.request('/v1/sources', {
+    const res = await request('/v1/sources', {
       method: 'POST',
       headers: { ...studentHeaders, 'content-type': 'application/json' },
       body: JSON.stringify({ courseId: 'SE101', title: 'x', sourceType: 'document' }),
@@ -64,7 +70,7 @@ describe('role restrictions on /v1/sources', () => {
   })
 
   it('forbids a student from updating a source', async () => {
-    const res = await app.request('/v1/sources/some-id', {
+    const res = await request('/v1/sources/some-id', {
       method: 'PATCH',
       headers: { ...studentHeaders, 'content-type': 'application/json' },
       body: JSON.stringify({ title: 'New title' }),
@@ -74,7 +80,7 @@ describe('role restrictions on /v1/sources', () => {
   })
 
   it('forbids a student from archiving (deleting) a source', async () => {
-    const res = await app.request('/v1/sources/some-id', {
+    const res = await request('/v1/sources/some-id', {
       method: 'DELETE',
       headers: studentHeaders,
     })
@@ -87,7 +93,7 @@ describe('request body validation on /v1/sources (instructor)', () => {
   const instructorHeaders = { 'x-user-id': 'i1', 'x-user-role': 'instructor' }
 
   it('rejects malformed JSON with 400 VALIDATION_ERROR', async () => {
-    const res = await app.request('/v1/sources', {
+    const res = await request('/v1/sources', {
       method: 'POST',
       headers: { ...instructorHeaders, 'content-type': 'application/json' },
       body: '{not valid json',
@@ -99,7 +105,7 @@ describe('request body validation on /v1/sources (instructor)', () => {
   })
 
   it('rejects an empty required field', async () => {
-    const res = await app.request('/v1/sources', {
+    const res = await request('/v1/sources', {
       method: 'POST',
       headers: { ...instructorHeaders, 'content-type': 'application/json' },
       body: JSON.stringify({ courseId: '   ', title: 'x', sourceType: 'document' }),
@@ -109,7 +115,7 @@ describe('request body validation on /v1/sources (instructor)', () => {
   })
 
   it('rejects an empty PATCH body', async () => {
-    const res = await app.request('/v1/sources/some-id', {
+    const res = await request('/v1/sources/some-id', {
       method: 'PATCH',
       headers: { ...instructorHeaders, 'content-type': 'application/json' },
       body: JSON.stringify({}),
@@ -123,7 +129,7 @@ describe('question length validation (FR-03: 3–1000 characters)', () => {
   const headers = { 'x-user-id': 's1', 'x-user-role': 'student', 'content-type': 'application/json' }
 
   it('rejects a question shorter than 3 characters before touching the database', async () => {
-    const res = await app.request('/v1/questions', {
+    const res = await request('/v1/questions', {
       method: 'POST',
       headers,
       body: JSON.stringify({ courseId: 'SE101', questionText: '  a  ' }),
@@ -135,7 +141,7 @@ describe('question length validation (FR-03: 3–1000 characters)', () => {
   })
 
   it('rejects a question longer than 1000 characters before touching the database', async () => {
-    const res = await app.request('/v1/questions', {
+    const res = await request('/v1/questions', {
       method: 'POST',
       headers,
       body: JSON.stringify({ courseId: 'SE101', questionText: 'x'.repeat(1001) }),
@@ -149,7 +155,7 @@ describe('feedback rating validation', () => {
   const headers = { 'x-user-id': 'u1', 'x-user-role': 'student', 'content-type': 'application/json' }
 
   it('rejects a rating outside 1-5 before ever touching the database', async () => {
-    const res = await app.request('/v1/answers/feedback', {
+    const res = await request('/v1/answers/feedback', {
       method: 'POST',
       headers,
       body: JSON.stringify({ answerId: 'a1', rating: 6 }),
@@ -161,7 +167,7 @@ describe('feedback rating validation', () => {
   })
 
   it('rejects a non-integer rating', async () => {
-    const res = await app.request('/v1/answers/feedback', {
+    const res = await request('/v1/answers/feedback', {
       method: 'POST',
       headers,
       body: JSON.stringify({ answerId: 'a1', rating: 3.5 }),
@@ -173,7 +179,7 @@ describe('feedback rating validation', () => {
 
 describe('correlation id', () => {
   it('echoes an incoming x-correlation-id on a successful response', async () => {
-    const res = await app.request('/v1/health', {
+    const res = await request('/v1/health', {
       headers: { 'x-correlation-id': 'given-id-123' },
     })
 
@@ -182,14 +188,14 @@ describe('correlation id', () => {
   })
 
   it('generates a correlation id when none is supplied', async () => {
-    const res = await app.request('/v1/health')
+    const res = await request('/v1/health')
 
     expect(res.status).toBe(200)
     expect(res.headers.get('x-correlation-id')).toBeTruthy()
   })
 
   it('includes the correlation id in both the header and the JSON body on an error response', async () => {
-    const res = await app.request('/v1/questions/does-not-matter', {
+    const res = await request('/v1/questions/does-not-matter', {
       headers: { 'x-correlation-id': 'error-case-456' },
     })
 

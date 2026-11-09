@@ -27,6 +27,23 @@ declare global {
      * partner-facing secret — this protects our own test/evidence tooling.
      */
     INTEGRATION_TEST_KEY?: string
+
+    /**
+     * "identity" (default): users sign in with Student Identity (Team 01) and
+     * send its Bearer token. "demo-headers": the unsigned x-user-id /
+     * x-user-role headers — offline local development and tests only.
+     */
+    AUTH_MODE?: string
+
+    /** Student Identity base URL (plain var). Defaults to their production service. */
+    IDENTITY_API_BASE?: string
+
+    /**
+     * Comma-separated Student Identity subjects (student IDs) that act as
+     * instructors in the Learning Assistant. Set as a secret
+     * (`wrangler secret put INSTRUCTOR_IDS`) so student IDs never land in git.
+     */
+    INSTRUCTOR_IDS?: string
   }
 }
 

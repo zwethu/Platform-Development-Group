@@ -7,6 +7,7 @@ import { feedback } from './routes/feedback'
 import { integration } from './routes/integration'
 import { webhooks } from './routes/webhooks'
 import { team17Integration } from './routes/team17-integration'
+import { auth } from './routes/auth'
 import { correlationId } from './middleware/correlation-id'
 import { requestLogger } from './middleware/request-logger'
 import { log } from './lib/logger'
@@ -20,6 +21,7 @@ app.use('*', requestLogger)
 
 const v1 = new Hono<AppEnv>()
 v1.route('/', health) // unauthenticated, unchanged
+v1.route('/', auth) // /auth/config (public) and /me (Student Identity sign-in)
 v1.route('/', sources)
 v1.route('/', questions)
 v1.route('/', feedback)

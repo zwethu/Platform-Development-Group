@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Learning Assistant API (Team 08)",
-    "description": "Team 08 Learning Assistant — Cloudflare Worker (Hono + D1 + Workers AI).\n\n**Run order matters:** folders are numbered and later requests reuse ids saved by earlier ones (sourceId, questionId, answerId). Use the Collection Runner, or send them top to bottom.\n\n**Before running**\n1. Start the API: `npm run db:migrate:local && npm run dev:local` (local D1 + real Workers AI), or `npx wrangler dev --local` (no AI; answers use the keyword fallback).\n2. Set `baseUrl` to the port wrangler prints (default `http://localhost:8787`; `8788` if 8787 was busy).\n3. `webhookSecret` and `integrationTestKey` must equal `INTERNSHIP_WEBHOOK_SECRET` and `INTEGRATION_TEST_KEY` in your `.dev.vars`. The defaults here are local-only placeholders — never put real secrets in this file.\n\n**Identity:** business routes use the temporary `x-user-id` / `x-user-role` headers (not real auth — see README).\n\n**Costs:** \"Ask a question\" and \"Deep health with AI probe\" make real Workers AI calls against your free daily allocation. \"Team 17 test-send\" posts to Team 17's live server — it is excluded from routine runs.",
+    "description": "Team 08 Learning Assistant — Cloudflare Worker (Hono + D1 + Workers AI).\n\n**Run order matters:** folders are numbered and later requests reuse ids saved by earlier ones (sourceId, questionId, answerId). Use the Collection Runner, or send them top to bottom.\n\n**Before running**\n1. Start the API: `npm run db:migrate:local && npm run dev:local` (local D1 + real Workers AI), or `npx wrangler dev --local` (no AI; answers use the keyword fallback).\n2. Set `baseUrl` to the port wrangler prints (default `http://localhost:8787`; `8788` if 8787 was busy).\n3. `webhookSecret` and `integrationTestKey` must equal `INTERNSHIP_WEBHOOK_SECRET` and `INTEGRATION_TEST_KEY` in your `.dev.vars`. The defaults here are local-only placeholders — never put real secrets in this file.\n\n**Identity:** deployments use Student Identity (Team 01) sign-in — run folder 0 first (see its description); each request then carries the Bearer token of the account it acts as. Local `npm run dev:local` uses demo-headers mode, where the `x-user-id` / `x-user-role` headers are enough.\n\n**Costs:** \"Ask a question\" and \"Deep health with AI probe\" make real Workers AI calls against your free daily allocation. \"Team 17 test-send\" posts to Team 17's live server — it is excluded from routine runs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -48,23 +48,272 @@
     {
       "key": "webhookEventId",
       "value": ""
+    },
+    {
+      "key": "identityUrl",
+      "value": "https://student-identity.onrender.com"
+    },
+    {
+      "key": "authMode",
+      "value": ""
+    },
+    {
+      "key": "studentPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "otherStudentPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "instructorPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "otherStudentToken",
+      "value": ""
+    },
+    {
+      "key": "instructorToken",
+      "value": ""
     }
   ],
   "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Identity mode (deployments): attach the Student Identity token of the account",
+          "// this request acts as. The x-user-* headers are then ignored by the server.",
+          "const uid = pm.variables.replaceIn(pm.request.headers.get('x-user-id') || '');",
+          "const tokenVar = {",
+          "  [pm.variables.get('studentId')]: 'studentToken',",
+          "  [pm.variables.get('otherStudentId')]: 'otherStudentToken',",
+          "  [pm.variables.get('instructorId')]: 'instructorToken',",
+          "}[uid];",
+          "const token = tokenVar && pm.variables.get(tokenVar);",
+          "if (token && !pm.request.headers.has('Authorization')) pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + token });"
+        ]
+      }
+    },
     {
       "listen": "test",
       "script": {
         "type": "text/javascript",
         "exec": [
-          "pm.test('response has x-correlation-id header', () => pm.response.to.have.header('x-correlation-id'));"
+          "if (!pm.request.url.toString().startsWith(pm.variables.get('identityUrl'))) {",
+          "  pm.test('response has x-correlation-id header', () => pm.response.to.have.header('x-correlation-id'));",
+          "}"
         ]
       }
     }
   ],
   "item": [
     {
+      "name": "0. Sign in (Student Identity — deployments only)",
+      "description": "Deployments use Student Identity (Team 01) sign-in. Set `studentId`, `otherStudentId` and `instructorId` to three real Student Identity student IDs, and their passwords in `studentPassword`, `otherStudentPassword`, `instructorPassword` — in a Postman environment's current value, never in this file. The instructor account must have the instructor/staff/admin role in Student Identity or be listed in the server's INSTRUCTOR_IDS. Requests without a password set are skipped (local demo-headers mode needs none of this).",
+      "item": [
+        {
+          "name": "Sign in as student",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('studentPassword')) { console.log('Skipped: set studentPassword to sign in as student.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('studentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{studentId}}\",\n  \"password\": \"{{studentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in as other student",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('otherStudentPassword')) { console.log('Skipped: set otherStudentPassword to sign in as other student.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('otherStudentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{otherStudentId}}\",\n  \"password\": \"{{otherStudentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in as instructor",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('instructorPassword')) { console.log('Skipped: set instructorPassword to sign in as instructor.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('instructorToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{instructorId}}\",\n  \"password\": \"{{instructorPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "1. Health",
       "item": [
+        {
+          "name": "Auth config (which sign-in mode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('mode is identity or demo-headers', () => pm.expect(d.mode).to.be.oneOf(['identity', 'demo-headers']));",
+                  "pm.collectionVariables.set('authMode', d.mode);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "config"
+              ]
+            }
+          }
+        },
         {
           "name": "Liveness",
           "event": [
@@ -1701,6 +1950,50 @@
                 "sources"
               ]
             }
+          }
+        },
+        {
+          "name": "Claiming instructor by header only → 401 on deployments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('authMode') === 'demo-headers') {",
+                  "  pm.test('demo-headers mode accepts header identities (local development only)', () => pm.response.to.have.status(200));",
+                  "} else {",
+                  "  pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "  pm.test('error code is UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));",
+                  "  pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "attacker"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "In identity mode the x-user-* headers are ignored, so this must be refused. (In local demo-headers mode it is accepted by design.)"
           }
         },
         {

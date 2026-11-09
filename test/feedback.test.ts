@@ -66,7 +66,7 @@ function createFeedbackDb(answers: Record<string, string>) {
     }
   }
 
-  return { env: { learning_assistant_db: { prepare } as unknown as D1Database }, rows }
+  return { env: { AUTH_MODE: 'demo-headers', learning_assistant_db: { prepare } as unknown as D1Database }, rows }
 }
 
 function post(env: object, userId: string, role: string, body: unknown) {

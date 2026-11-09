@@ -101,6 +101,57 @@ const state = {
   role: store.get('la.role', 'student'),
   userId: store.get('la.userId', 'student-a'),
   courseId: store.get('la.courseId', DEFAULT_COURSE),
+  // Set from GET /v1/auth/config at boot. 'identity' = sign in with Student
+  // Identity (Team 01); 'demo-headers' = local development role switcher.
+  authMode: 'identity',
+  identityUrl: null,
+}
+
+// Student Identity session: only the short-lived token (and its expiry) is
+// kept, in sessionStorage, so it disappears when the tab closes. The
+// password is never stored and never sent to the Learning Assistant server.
+const ID_SESSION_KEY = 'la.identitySession'
+
+function getIdSession() {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(ID_SESSION_KEY) || 'null')
+    if (s && s.exp && s.exp * 1000 <= Date.now()) {
+      sessionStorage.removeItem(ID_SESSION_KEY)
+      return null
+    }
+    return s
+  } catch {
+    return null
+  }
+}
+
+function setIdSession(session) {
+  try {
+    if (session) sessionStorage.setItem(ID_SESSION_KEY, JSON.stringify(session))
+    else sessionStorage.removeItem(ID_SESSION_KEY)
+  } catch { /* storage unavailable: the user signs in again next time */ }
+}
+
+/** Reads `exp` from a JWT for display/expiry only; the server verifies tokens with Student Identity. */
+function tokenExpiry(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return typeof payload.exp === 'number' ? payload.exp : null
+  } catch {
+    return null
+  }
+}
+
+function isSignedIn() {
+  return state.authMode === 'demo-headers' || Boolean(getIdSession() && state.signedIn)
+}
+
+function signOut(message) {
+  setIdSession(null)
+  state.signedIn = false
+  renderAuthStatus()
+  if (message) toast(message, 'bad')
+  location.hash = '#/signin'
 }
 
 function setCourse(courseId) {
@@ -138,7 +189,10 @@ class ApiError extends Error {
  */
 async function api(path, { method = 'GET', body, auth = true, headers = {}, allow = [] } = {}) {
   const hdrs = { ...headers }
-  if (auth) {
+  if (auth && state.authMode === 'identity') {
+    const session = getIdSession()
+    if (session) hdrs.Authorization = `Bearer ${session.token}`
+  } else if (auth) {
     hdrs['x-user-id'] = state.userId
     hdrs['x-user-role'] = state.role
   }
@@ -157,6 +211,9 @@ async function api(path, { method = 'GET', body, auth = true, headers = {}, allo
 
   if (!res.ok && !allow.includes(res.status)) {
     const err = json && json.error
+    if (res.status === 401 && auth && state.authMode === 'identity' && state.signedIn) {
+      signOut('Your sign-in has expired. Please sign in again.')
+    }
     throw new ApiError(
       res.status,
       (err && err.code) || `HTTP_${res.status}`,
@@ -213,6 +270,7 @@ const NAV = {
 }
 
 const ROUTES = [
+  [/^#\/signin$/, () => viewSignIn()],
   [/^#\/ask$/, () => viewAsk()],
   [/^#\/questions$/, () => viewQuestions()],
   [/^#\/questions\/([^/]+)$/, (m) => viewQuestion(decodeURIComponent(m[1]))],
@@ -233,16 +291,27 @@ function mount(token, ...nodes) {
   return true
 }
 
+const SIGNED_OUT_NAV = [['#/signin', 'Sign in'], ['#/status', 'System status']]
+const PUBLIC_ROUTES = ['#/signin', '#/status']
+
 function renderNav() {
   const current = location.hash.startsWith('#/questions/') ? '#/questions' : location.hash
   document.getElementById('nav').replaceChildren(
-    ...NAV[state.role].map(([href, label]) =>
+    ...(isSignedIn() ? NAV[state.role] : SIGNED_OUT_NAV).map(([href, label]) =>
       h('a', { href, 'aria-current': href === current ? 'page' : null }, label)),
   )
 }
 
 function route() {
   const hash = location.hash
+  if (!isSignedIn() && !PUBLIC_ROUTES.includes(hash)) {
+    location.replace('#/signin')
+    return
+  }
+  if (isSignedIn() && hash === '#/signin') {
+    location.replace(homeRoute())
+    return
+  }
   const match = ROUTES.map(([re, fn]) => [hash.match(re), fn]).find(([m]) => m)
   if (!match) {
     location.replace(homeRoute())
@@ -1038,11 +1107,139 @@ function initIdentity() {
   })
 }
 
+/* ================================================================
+   Student Identity sign-in (identity mode)
+   ================================================================ */
+
+/** Header area: the demo switcher in demo mode, or who is signed in with Student Identity. */
+function renderAuthStatus() {
+  const demoForm = document.getElementById('identity')
+  const status = document.getElementById('auth-status')
+  const banner = document.getElementById('demo-banner')
+  const demo = state.authMode === 'demo-headers'
+  demoForm.hidden = !demo
+  banner.hidden = !demo
+  status.hidden = demo
+  if (demo) return
+  status.replaceChildren(...(state.signedIn
+    ? [
+        h('span', { class: 'auth-who' },
+          h('span', { class: 'auth-id' }, state.userId),
+          h('span', { class: `pill ${state.role === 'instructor' ? 'pill-ai' : 'pill-accent'}` }, state.role)),
+        h('button', { type: 'button', class: 'btn btn-secondary btn-small', onClick: () => signOut() }, 'Sign out'),
+      ]
+    : [h('a', { class: 'btn btn-small', href: '#/signin' }, 'Sign in')]))
+}
+
+/** Asks our server who the token belongs to (it verifies the token with Student Identity). */
+async function loadSignedInUser() {
+  const { data } = await api('/v1/me')
+  state.userId = data.id
+  state.role = data.role
+  state.signedIn = true
+  renderAuthStatus()
+}
+
+function viewSignIn() {
+  const token = renderToken
+  const idInput = h('input', { id: 'si-student-id', inputmode: 'numeric', maxlength: 10, required: true, autocomplete: 'username', placeholder: '10-digit student ID' })
+  const pwInput = h('input', { id: 'si-password', type: 'password', required: true, maxlength: 1024, autocomplete: 'current-password' })
+  const msg = h('div', { 'aria-live': 'polite' })
+  const submit = h('button', { type: 'submit', class: 'btn' }, 'Sign in')
+  const identityUrl = state.identityUrl
+
+  const form = h('form', { class: 'card', 'aria-labelledby': 'signin-title', onSubmit: async (e) => {
+    e.preventDefault()
+    const done = busy(submit, 'Signing in…')
+    // Student Identity runs on free hosting that sleeps; the first request can take a while.
+    const slow = setTimeout(() => msg.replaceChildren(h('div', { class: 'notice notice-info' },
+      'Waking up Student Identity — the first sign-in can take up to a minute.')), 4000)
+    try {
+      let res
+      try {
+        res = await fetch(`${identityUrl}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId: idInput.value.trim(), password: pwInput.value }),
+        })
+      } catch {
+        throw new ApiError(0, 'NETWORK', 'Could not reach Student Identity. Check your connection and try again.', null)
+      }
+      const json = await res.json().catch(() => null)
+      if (!res.ok || !json || typeof json.token !== 'string') {
+        throw new ApiError(res.status, 'SIGN_IN_FAILED',
+          (json && (json.error || json.message)) || 'Sign-in failed. Check your student ID and password.', null)
+      }
+      setIdSession({ token: json.token, exp: tokenExpiry(json.token) })
+      await loadSignedInUser()
+      toast(`Signed in as ${state.userId} (${state.role})`)
+      location.hash = homeRoute()
+    } catch (err) {
+      if (!(err instanceof ApiError && err.code === 'SIGN_IN_FAILED')) setIdSession(null)
+      state.signedIn = false
+      msg.replaceChildren(errorBox(err))
+    } finally {
+      clearTimeout(slow)
+      pwInput.value = '' // never keep the password around
+      done()
+    }
+  } },
+    h('h2', { id: 'signin-title' }, 'Sign in with Student Identity'),
+    h('p', { class: 'muted small' },
+      'Use your university Student Identity account (Team 01). Your password goes directly from this browser to Student Identity over HTTPS — the Learning Assistant never receives or stores it.'),
+    h('div', { class: 'field' }, h('label', { for: 'si-student-id' }, 'Student ID'), idInput),
+    h('div', { class: 'field' }, h('label', { for: 'si-password' }, 'Password'), pwInput),
+    h('div', { class: 'actions' }, submit,
+      identityUrl ? h('a', { href: identityUrl, target: '_blank', rel: 'noopener noreferrer', class: 'small' }, 'No account? Create one on Student Identity') : null),
+    msg,
+  )
+
+  mount(token,
+    pageHead('Welcome to the Learning Assistant', 'Ask questions about your courses and get answers drawn only from your instructors’ approved materials, with sources.'),
+    h('div', { class: 'grid grid-main-side' }, form,
+      h('aside', { class: 'card' },
+        h('h2', null, 'How sign-in works'),
+        h('ul', { class: 'compact-list' },
+          h('li', null, 'Student Identity checks your password and gives this tab a short-lived sign-in token.'),
+          h('li', null, 'Our server confirms that token with Student Identity on your requests.'),
+          h('li', null, 'Students ask questions; instructors manage course materials.'),
+          h('li', null, 'Closing the tab signs you out.')))),
+  )
+  idInput.focus()
+}
+
+/* ================================================================
+   Start
+   ================================================================ */
+
 document.getElementById('skip-link').addEventListener('click', (e) => {
   e.preventDefault()
   view().focus()
 })
 
-window.addEventListener('hashchange', route)
-initIdentity()
-route()
+async function boot() {
+  try {
+    const { data } = await api('/v1/auth/config', { auth: false })
+    state.authMode = data.mode === 'demo-headers' ? 'demo-headers' : 'identity'
+    state.identityUrl = data.identityProvider ? data.identityProvider.url : null
+  } catch {
+    state.authMode = 'identity' // fail closed: never fall back to unsigned headers
+  }
+
+  if (state.authMode === 'demo-headers') {
+    state.signedIn = true
+    initIdentity()
+  } else if (getIdSession()) {
+    try {
+      await loadSignedInUser() // restores a sign-in that is still valid in this tab
+    } catch {
+      setIdSession(null)
+      state.signedIn = false
+    }
+  }
+  renderAuthStatus()
+  window.addEventListener('hashchange', route)
+  route()
+}
+
+boot()

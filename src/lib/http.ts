@@ -15,6 +15,8 @@ export type ErrorCode =
   | 'VALIDATION_ERROR'
   | 'INTERNAL_ERROR'
   | 'CONFIGURATION_ERROR'
+  // A service we depend on (Student Identity) is down; not the caller's fault.
+  | 'DEPENDENCY_UNAVAILABLE'
 
 export function sendData<T>(c: Context<AppEnv>, status: ContentfulStatusCode, data: T) {
   return c.json({ data }, status)

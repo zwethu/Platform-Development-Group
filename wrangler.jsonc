@@ -22,7 +22,10 @@
 		// Per-course daily cap, kept well below the free allocation (PRD NFR-06).
 		"AI_DAILY_BUDGET_PER_COURSE": "300",
 		// PRD NFR-01: abandon the AI path after 15 s and use the fallback.
-		"AI_TIMEOUT_MS": "15000"
+		"AI_TIMEOUT_MS": "15000",
+		// Users sign in with Student Identity (Team 01); see src/middleware/auth.ts.
+		"AUTH_MODE": "identity",
+		"IDENTITY_API_BASE": "https://student-identity.onrender.com"
 	},
 	// Workers Logs: keeps the structured JSON log lines (PRD NFR-11).
 	"observability": { "enabled": true },
@@ -43,7 +46,10 @@
 				"AI_ENABLED": "true",
 				"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
 				"AI_DAILY_BUDGET_PER_COURSE": "1000",
-				"AI_TIMEOUT_MS": "15000"
+				"AI_TIMEOUT_MS": "15000",
+				// Offline local development keeps the unsigned demo headers.
+				"AUTH_MODE": "demo-headers",
+				"IDENTITY_API_BASE": "https://student-identity.onrender.com"
 			}
 		},
 		// `npm run deploy:khant` — a separate deployment on Khant Wai Lin's own
@@ -63,7 +69,9 @@
 				"AI_ENABLED": "true",
 				"AI_MODEL": "@cf/meta/llama-3.2-3b-instruct",
 				"AI_DAILY_BUDGET_PER_COURSE": "300",
-				"AI_TIMEOUT_MS": "15000"
+				"AI_TIMEOUT_MS": "15000",
+				"AUTH_MODE": "identity",
+				"IDENTITY_API_BASE": "https://student-identity.onrender.com"
 			}
 		}
 	}

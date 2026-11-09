@@ -19,7 +19,9 @@
         <span class="brand-text">Learning Assistant <span class="brand-team">Team 08</span></span>
       </a>
 
-      <form class="identity" id="identity" aria-label="Demo identity">
+      <div class="auth-status" id="auth-status" hidden></div>
+
+      <form class="identity" id="identity" aria-label="Demo identity" hidden>
         <label class="identity-field">
           <span class="identity-label">Role</span>
           <select id="identity-role">
@@ -42,10 +44,10 @@
     <nav class="nav" id="nav" aria-label="Main"></nav>
   </header>
 
-  <p class="demo-banner" role="note">
-    <strong>Demo identity.</strong> The role and user ID above are sent as temporary
-    <code>x-user-id</code> / <code>x-user-role</code> headers — not real authentication
-    (to be replaced by the Student Identity service).
+  <p class="demo-banner" id="demo-banner" role="note" hidden>
+    <strong>Local demo mode.</strong> The role and user ID above are sent as unsigned
+    <code>x-user-id</code> / <code>x-user-role</code> headers — for offline development only.
+    Deployments use Student Identity sign-in.
   </p>
 
   <main id="view" tabindex="-1" aria-live="polite"></main>
