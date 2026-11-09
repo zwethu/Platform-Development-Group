@@ -10,8 +10,19 @@ health.get('/health', (c) => {
   return c.json({ status: 'ok', service: 'learning-assistant' }, 200)
 })
 
-// Every table a question needs. ai_usage proves migration 0003 was applied.
-const REQUIRED_TABLES = ['knowledge_sources', 'questions', 'answers', 'citations', 'answer_feedback', 'ai_usage']
+// Every table the app needs, one or more per migration: ai_usage proves 0003,
+// source_chunks + instructor_replies prove 0004, courses proves 0005.
+const REQUIRED_TABLES = [
+  'knowledge_sources',
+  'questions',
+  'answers',
+  'citations',
+  'answer_feedback',
+  'ai_usage',
+  'source_chunks',
+  'instructor_replies',
+  'courses',
+]
 
 type Check = { status: 'pass' | 'warn' | 'fail'; latencyMs: number; detail?: unknown; error?: string }
 

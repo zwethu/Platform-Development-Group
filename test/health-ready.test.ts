@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import app from '../src/index'
 
-const ALL_TABLES = ['knowledge_sources', 'questions', 'answers', 'citations', 'answer_feedback', 'ai_usage']
+const ALL_TABLES = [
+  'knowledge_sources',
+  'questions',
+  'answers',
+  'citations',
+  'answer_feedback',
+  'ai_usage',
+  'source_chunks',
+  'instructor_replies',
+  'courses',
+]
 
 /** D1 stub that answers only the two queries /v1/health/ready makes. */
 function fakeDb({ tables = ALL_TABLES, invocationsToday = 0, broken = false } = {}) {
@@ -82,6 +92,14 @@ describe('GET /v1/health/ready (deep health)', () => {
     expect(status).toBe(503)
     expect(body.status).toBe('down')
     expect(body.checks.database.error).toMatch(/ai_usage/)
+  })
+
+  it('is down (503) when the newest migrations (0004, 0005) are missing', async () => {
+    const tables = ALL_TABLES.filter((t) => !['source_chunks', 'instructor_replies', 'courses'].includes(t))
+    const { status, body } = await ready(env({ learning_assistant_db: fakeDb({ tables }) }))
+    expect(status).toBe(503)
+    expect(body.status).toBe('down')
+    expect(body.checks.database.error).toMatch(/source_chunks, instructor_replies, courses/)
   })
 
   it('is down (503) when the database is unreachable', async () => {
