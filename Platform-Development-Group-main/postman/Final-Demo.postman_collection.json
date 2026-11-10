@@ -39,7 +39,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8788"
+      "value": "https://learning-assistant-api.6731503060.workers.dev"
     },
     {
       "key": "courseId",
@@ -47,23 +47,23 @@
     },
     {
       "key": "studentId",
-      "value": "student-a"
+      "value": ""
     },
     {
       "key": "otherStudentId",
-      "value": "student-b"
+      "value": ""
     },
     {
       "key": "instructorId",
-      "value": "instr-1"
+      "value": ""
     },
     {
       "key": "webhookSecret",
-      "value": "local-dev-temp-secret-not-real"
+      "value": ""
     },
     {
       "key": "integrationTestKey",
-      "value": "local-test-key"
+      "value": ""
     },
     {
       "key": "sourceId",
