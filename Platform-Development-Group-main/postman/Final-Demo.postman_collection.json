@@ -1,0 +1,1765 @@
+{
+  "info": {
+    "name": "Learning Assistant - Final Demo (Team 08)",
+    "description": "Curated from Learning-Assistant-API.postman_collection.json for the final evaluation. Select the 'Learning Assistant - Production' environment, fill the account IDs and passwords (Current value), then Run the collection or click through folders 1-7 in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "team08-final-demo"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Identity mode (deployments): attach the Student Identity token of the account",
+          "// this request acts as. The x-user-* headers are then ignored by the server.",
+          "const uid = pm.variables.replaceIn(pm.request.headers.get('x-user-id') || '');",
+          "const tokenVar = {",
+          "  [pm.variables.get('studentId')]: 'studentToken',",
+          "  [pm.variables.get('otherStudentId')]: 'otherStudentToken',",
+          "  [pm.variables.get('instructorId')]: 'instructorToken',",
+          "}[uid];",
+          "const token = tokenVar && pm.variables.get(tokenVar);",
+          "if (token && !pm.request.headers.has('Authorization')) pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + token });"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.request.url.toString().startsWith(pm.variables.get('identityUrl'))) {",
+          "  pm.test('response has x-correlation-id header', () => pm.response.to.have.header('x-correlation-id'));",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8788"
+    },
+    {
+      "key": "courseId",
+      "value": "1305308"
+    },
+    {
+      "key": "studentId",
+      "value": "student-a"
+    },
+    {
+      "key": "otherStudentId",
+      "value": "student-b"
+    },
+    {
+      "key": "instructorId",
+      "value": "instr-1"
+    },
+    {
+      "key": "webhookSecret",
+      "value": "local-dev-temp-secret-not-real"
+    },
+    {
+      "key": "integrationTestKey",
+      "value": "local-test-key"
+    },
+    {
+      "key": "sourceId",
+      "value": ""
+    },
+    {
+      "key": "questionId",
+      "value": ""
+    },
+    {
+      "key": "answerId",
+      "value": ""
+    },
+    {
+      "key": "webhookEventId",
+      "value": ""
+    },
+    {
+      "key": "uploadSourceId",
+      "value": ""
+    },
+    {
+      "key": "newCourseId",
+      "value": ""
+    },
+    {
+      "key": "noSourceQuestionId",
+      "value": ""
+    },
+    {
+      "key": "faqSourceId",
+      "value": ""
+    },
+    {
+      "key": "identityUrl",
+      "value": "https://student-identity.onrender.com"
+    },
+    {
+      "key": "authMode",
+      "value": ""
+    },
+    {
+      "key": "studentPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "otherStudentPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "instructorPassword",
+      "value": "",
+      "description": "Set in an environment current value only"
+    },
+    {
+      "key": "studentToken",
+      "value": ""
+    },
+    {
+      "key": "otherStudentToken",
+      "value": ""
+    },
+    {
+      "key": "instructorToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Sign in with Team 01 Student Identity",
+      "item": [
+        {
+          "name": "Sign in as student",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('studentPassword')) { console.log('Skipped: set studentPassword to sign in as student.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('studentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{studentId}}\",\n  \"password\": \"{{studentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in as other student",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('otherStudentPassword')) { console.log('Skipped: set otherStudentPassword to sign in as other student.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('otherStudentToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{otherStudentId}}\",\n  \"password\": \"{{otherStudentPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign in as instructor",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.variables.get('instructorPassword')) { console.log('Skipped: set instructorPassword to sign in as instructor.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Student Identity issued a token', () => pm.expect(pm.response.json().token).to.be.a('string'));",
+                  "pm.collectionVariables.set('instructorToken', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identityUrl}}/auth/login",
+              "host": [
+                "{{identityUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentId\": \"{{instructorId}}\",\n  \"password\": \"{{instructorPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Auth config (which sign-in mode)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('mode is identity or demo-headers', () => pm.expect(d.mode).to.be.oneOf(['identity', 'demo-headers']));",
+                  "pm.collectionVariables.set('authMode', d.mode);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "config"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. System is live on Cloudflare",
+      "item": [
+        {
+          "name": "Liveness",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('service is up', () => pm.expect(pm.response.json()).to.eql({ status: 'ok', service: 'learning-assistant' }));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "health"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Deep health (DB, AI flag, budget)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 or 503', () => pm.expect(pm.response.code).to.be.oneOf([200, 503]));",
+                  "const b = pm.response.json();",
+                  "pm.test('reports database, ai and ai_budget checks', () => pm.expect(b.checks).to.have.all.keys('database', 'ai', 'ai_budget'));",
+                  "pm.test('database check passes', () => pm.expect(b.checks.database.status).to.eql('pass'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "health",
+                "ready"
+              ]
+            },
+            "description": "200 when every check passes; 503 `degraded` (e.g. AI disabled) or `down` (DB/migration problem)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Happy path: material -> question -> answer -> rating",
+      "item": [
+        {
+          "name": "Ensure the main course exists (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('created (201) or already there (409)', () => pm.expect(pm.response.code).to.be.oneOf([201, 409]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{courseId}}\",\n  \"name\": \"Platform Development\",\n  \"description\": \"APIs, integration and cloud deployment.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create source (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const s = pm.response.json().data;",
+                  "pm.test('source is approved and belongs to the course', () => {",
+                  "  pm.expect(s.status).to.eql('approved');",
+                  "  pm.expect(s.courseId).to.eql(pm.variables.get('courseId'));",
+                  "});",
+                  "pm.collectionVariables.set('sourceId', s.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"Postman Demo — REST API Basics\",\n  \"sourceType\": \"document\",\n  \"content\": \"REST APIs use HTTP verbs such as GET, POST, PATCH and DELETE to read and change resources. Each resource has a stable URL, and responses use standard status codes such as 200, 201, 400, 401, 403 and 404.\",\n  \"keywords\": [\n    \"rest\",\n    \"api\",\n    \"http\",\n    \"verbs\",\n    \"status codes\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "List course sources (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('only approved sources are listed', () => d.items.forEach((s) => pm.expect(s.status).to.eql('approved')));",
+                  "pm.test('includes the source just created', () => pm.expect(d.items.map((s) => s.id)).to.include(pm.collectionVariables.get('sourceId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{courseId}}/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{courseId}}",
+                "sources"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ask a question (AI or keyword fallback)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('question is owned by the caller', () => pm.expect(d.question.studentId).to.eql(pm.variables.get('studentId')));",
+                  "pm.test('question reached a terminal status', () => pm.expect(d.question.status).to.be.oneOf(['answered', 'no_source_found']));",
+                  "pm.test('generation mode reported', () => pm.expect(d.generation.mode).to.be.oneOf(['ai', 'fallback']));",
+                  "pm.test('an AI answer cites at least one source (FR-07)', () => {",
+                  "  if (d.generation.mode === 'ai') pm.expect(d.citations.length).to.be.above(0);",
+                  "});",
+                  "pm.test('every citation points at a source and quotes it', () => d.citations.forEach((c) => {",
+                  "  pm.expect(c.sourceId).to.be.a('string');",
+                  "  pm.expect(c.excerpt).to.be.a('string').and.not.empty;",
+                  "}));",
+                  "pm.collectionVariables.set('questionId', d.question.id);",
+                  "pm.collectionVariables.set('answerId', d.answer.id);",
+                  "console.log('generation:', JSON.stringify(d.generation));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "description": "Real Workers AI call when AI is available. `data.generation.mode` is `ai` or `fallback`; `fallbackReason` explains any fallback.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"Which HTTP verbs do REST APIs use?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get own question (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('returns question, answer and citations', () => {",
+                  "  pm.expect(d.question.id).to.eql(pm.collectionVariables.get('questionId'));",
+                  "  pm.expect(d.answer.id).to.eql(pm.collectionVariables.get('answerId'));",
+                  "  pm.expect(d.citations).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{questionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{questionId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rate own answer (first time → 201)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201 (or 200 on a re-run)', () => pm.expect(pm.response.code).to.be.oneOf([201, 200]));",
+                  "pm.test('rating saved', () => pm.expect(pm.response.json().data.rating).to.eql(5));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/answers/feedback",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "answers",
+                "feedback"
+              ]
+            },
+            "description": "First rating by this user returns 201. If you re-run the collection against the same answer it returns 200 (update) — both are accepted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answerId\": \"{{answerId}}\",\n  \"rating\": 5,\n  \"comment\": \"Clear and well cited.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Happy path: ask my instructor -> reply -> FAQ",
+      "item": [
+        {
+          "name": "Ask with no matching material → no_source_found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status is no_source_found', () => pm.expect(d.question.status).to.eql('no_source_found'));",
+                  "pm.test('no citations and no model call', () => {",
+                  "  pm.expect(d.citations).to.have.length(0);",
+                  "  pm.expect(d.generation.model).to.eql(null);",
+                  "});",
+                  "pm.collectionVariables.set('noSourceQuestionId', d.question.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"Explain photosynthesis in tropical plants\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ask my instructor (student who asked)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const q = pm.response.json().data;",
+                  "pm.test('question is escalated with the note', () => {",
+                  "  pm.expect(q.escalatedAt).to.be.a('string');",
+                  "  pm.expect(q.escalationNote).to.eql('The course materials do not mention this.');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/escalate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "escalate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"The course materials do not mention this.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Instructor inbox (needs a reply)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const item = pm.response.json().data.items.find((i) => i.question.id === pm.collectionVariables.get('noSourceQuestionId'));",
+                  "pm.test('escalated question is in the inbox', () => pm.expect(item).to.be.an('object'));",
+                  "pm.test('with its reasons', () => pm.expect(item.reasons).to.include.members(['asked_instructor', 'no_source_found']));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/instructor/inbox?courseId={{courseId}}&filter=open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "instructor",
+                "inbox"
+              ],
+              "query": [
+                {
+                  "key": "courseId",
+                  "value": "{{courseId}}"
+                },
+                {
+                  "key": "filter",
+                  "value": "open"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reply and add it to course materials (instructor)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('reply saved, unread', () => pm.expect(d.reply.readAt).to.eql(null));",
+                  "pm.test('FAQ source created in the same course', () => {",
+                  "  pm.expect(d.faqSource.title).to.eql('FAQ: Is photosynthesis covered in this course?');",
+                  "  pm.expect(d.faqSource.courseId).to.eql(pm.variables.get('courseId'));",
+                  "});",
+                  "pm.collectionVariables.set('faqSourceId', d.faqSource.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}/replies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}",
+                "replies"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Photosynthesis is not part of 1305308 Platform Development; this course covers APIs, integration and cloud deployment.\",\n  \"addToSources\": true,\n  \"faqQuestion\": \"Is photosynthesis covered in this course?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "My questions shows the unread reply (student)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "const q = d.items.find((i) => i.id === pm.collectionVariables.get('noSourceQuestionId'));",
+                  "pm.test('question has an unread reply', () => pm.expect(q.unreadReplies).to.eql(1));",
+                  "pm.test('badge total counts it', () => pm.expect(d.unreadReplies).to.be.at.least(1));",
+                  "pm.test('only own questions', () => d.items.forEach((i) => pm.expect(i.studentId).to.eql(pm.variables.get('studentId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "questions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Student opens the question → sees the reply",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reply included', () => pm.expect(pm.response.json().data.replies[0].content).to.include('not part of 1305308'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{noSourceQuestionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{noSourceQuestionId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Next student gets the FAQ as a cited answer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('answered from the FAQ', () => {",
+                  "  pm.expect(d.question.status).to.eql('answered');",
+                  "  pm.expect(d.citations.map((c) => c.sourceId)).to.include(pm.collectionVariables.get('faqSourceId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherStudentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"Is photosynthesis covered in this course?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Team 17 webhook integration",
+      "item": [
+        {
+          "name": "Public integration status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('partner is team-17-internship', () => pm.expect(pm.response.json().data.integration.partner).to.eql('team-17-internship'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/integration/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "integration",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Webhook: new signed event → 202",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('webhookEventId', 'evt-postman-' + Date.now());",
+                  "const hmac = require('crypto-js');",
+                  "const rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const signature = hmac.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(hmac.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Webhook-Signature', value: signature });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 202', () => pm.response.to.have.status(202));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('accepted and created a knowledge source', () => {",
+                  "  pm.expect(d.status).to.eql('accepted');",
+                  "  pm.expect(d.knowledgeSourceId).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/internship",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                "internship"
+              ]
+            },
+            "description": "Pre-request script generates a fresh eventId and signs the exact raw body with HMAC-SHA-256 using `webhookSecret`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"eventId\":\"{{webhookEventId}}\",\"type\":\"internship.opportunity.published\",\"occurredAt\":\"2026-09-21T00:00:00.000Z\",\"source\":\"team-17-internship\",\"subject\":\"opportunity:int-001\",\"data\":{\"opportunityId\":\"int-001\",\"title\":\"Software Engineering Internship\",\"companyName\":\"Demo Technology Co.\",\"description\":\"Support web application development.\",\"requirements\":[\"Resume\",\"GitHub profile\"],\"applicationDeadline\":\"2026-10-15T16:59:00.000Z\",\"url\":\"https://example.invalid/internships/int-001\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Webhook: replay same event → 200 duplicate",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const hmac = require('crypto-js');",
+                  "const rawBody = pm.variables.replaceIn(pm.request.body.raw);",
+                  "const signature = hmac.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(hmac.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'X-Webhook-Signature', value: signature });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reported as duplicate, not processed', () => {",
+                  "  const d = pm.response.json().data;",
+                  "  pm.expect(d.status).to.eql('duplicate');",
+                  "  pm.expect(d.processed).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/internship",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                "internship"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"eventId\":\"{{webhookEventId}}\",\"type\":\"internship.opportunity.published\",\"occurredAt\":\"2026-09-21T00:00:00.000Z\",\"source\":\"team-17-internship\",\"subject\":\"opportunity:int-001\",\"data\":{\"opportunityId\":\"int-001\",\"title\":\"Software Engineering Internship\",\"companyName\":\"Demo Technology Co.\",\"description\":\"Support web application development.\",\"requirements\":[\"Resume\",\"GitHub profile\"],\"applicationDeadline\":\"2026-10-15T16:59:00.000Z\",\"url\":\"https://example.invalid/internships/int-001\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Webhook: bad signature → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code is UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Webhook-Signature",
+                "value": "deadbeef"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/webhooks/internship",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "webhooks",
+                "internship"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"eventId\":\"{{webhookEventId}}\",\"type\":\"internship.opportunity.published\",\"occurredAt\":\"2026-09-21T00:00:00.000Z\",\"source\":\"team-17-internship\",\"subject\":\"opportunity:int-001\",\"data\":{\"opportunityId\":\"int-001\",\"title\":\"Software Engineering Internship\",\"companyName\":\"Demo Technology Co.\",\"description\":\"Support web application development.\",\"requirements\":[\"Resume\",\"GitHub profile\"],\"applicationDeadline\":\"2026-10-15T16:59:00.000Z\",\"url\":\"https://example.invalid/internships/int-001\"}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Internship opportunities (CAREER sources)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('contains internship_opportunity sources', () => pm.expect(pm.response.json().data.items.some((s) => s.sourceType === 'internship_opportunity')).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/CAREER/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "CAREER",
+                "sources"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Security: expected failures (401/403/400/404)",
+      "item": [
+        {
+          "name": "No identity headers → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code is UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses/{{courseId}}/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses",
+                "{{courseId}}",
+                "sources"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Claiming instructor by header only → 401 on deployments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('authMode') === 'demo-headers') {",
+                  "  pm.test('demo-headers mode accepts header identities (local development only)', () => pm.response.to.have.status(200));",
+                  "} else {",
+                  "  pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "  pm.test('error code is UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));",
+                  "  pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "attacker"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me"
+              ]
+            },
+            "description": "In identity mode the x-user-* headers are ignored, so this must be refused. (In local demo-headers mode it is accepted by design.)"
+          }
+        },
+        {
+          "name": "Create course as student → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/courses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "courses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"STUDENT-COURSE\",\n  \"name\": \"Not allowed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get another student's question → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherStudentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions/{{questionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions",
+                "{{questionId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rate another student's answer → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{otherStudentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/answers/feedback",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "answers",
+                "feedback"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answerId\": \"{{answerId}}\",\n  \"rating\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create source with empty title → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"title\": \"   \",\n  \"sourceType\": \"document\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Question too short → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('error carries correlationId', () => pm.expect(pm.response.json().error.correlationId).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{studentId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "student"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/questions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "questions"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseId\": \"{{courseId}}\",\n  \"questionText\": \"a\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Unknown route → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/does-not-exist",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "does-not-exist"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Clean-up (archive demo data)",
+      "item": [
+        {
+          "name": "Archive source (soft delete)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status is archived', () => pm.expect(pm.response.json().data.status).to.eql('archived'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{sourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{sourceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Archive the FAQ source (clean-up, so re-runs start fresh)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-user-id",
+                "value": "{{instructorId}}"
+              },
+              {
+                "key": "x-user-role",
+                "value": "instructor"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/sources/{{faqSourceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "sources",
+                "{{faqSourceId}}"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
