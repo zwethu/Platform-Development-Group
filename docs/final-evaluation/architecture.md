@@ -135,8 +135,9 @@ The full request collection is in [`postman/`](../../postman/Learning-Assistant-
 
 ## 7. Deployment
 
-- `npm run deploy` publishes UI and API together as one Worker. **One team member holds the
-  Cloudflare access and deploys.** Everyone else commits to `main`.
-- Remote migrations: `wrangler d1 migrations apply learning-assistant-db --remote`.
+- `npm run deploy:khant` publishes UI and API together as one Worker to
+  `https://learning-assistant-api.6731503060.workers.dev` (the `khant` environment and its D1 database).
+- Remote migrations: `npm run db:migrate:khant` (applies only the missing ones).
+- Team members with access to the Cloudflare account can deploy; everyone commits to `main` first.
 - Environments in `wrangler.jsonc`: the default (deployed, `AUTH_MODE=identity`), `local`
   (local D1 file, demo sign-in for offline development), and `khant` (a team member's deployment).
