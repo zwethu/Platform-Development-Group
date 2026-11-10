@@ -74,7 +74,8 @@ export function buildUserMessage(question: string, matches: FallbackMatch[]): st
       return `<passage number="${i + 1}" title="${label.replace(/"/g, "'")}">\n${text}\n</passage>`
     })
     .join('\n')
-  return `<passages>\n${passages}\n</passages>\n\n<question>\n${question}\n</question>`
+  // Repeated here: the 3B model follows the last message far more than the system prompt.
+  return `<passages>\n${passages}\n</passages>\n\n<question>\n${question}\n</question>\n\nExplain the answer in 3 to 6 sentences: describe what the passages teach about it, covering every relevant point, not just its title.`
 }
 
 /** Pulls the first JSON object out of the model text (models sometimes add code fences). */
