@@ -1,3 +1,0 @@
-timestamp,label,requests,concurrency,success_rate,error_rate,ai_answers,fallback_answers,no_source_answers,mean_ms,p50_ms,p95_ms,p99_ms,max_ms,throughput_rps,budget_ms,result
-2026-11-07T21:41:03.845Z,explore-llama-3.2-3b-instruct,40,5,1.000,0.000,32,2,6,539,490,833,966,966,8.93,5000,PASS
-2026-11-07T21:41:30.277Z,explore-granite-4.0-h-micro,40,5,1.000,0.000,0,40,0,1892,1753,3142,3191,3191,2.55,5000,PASS

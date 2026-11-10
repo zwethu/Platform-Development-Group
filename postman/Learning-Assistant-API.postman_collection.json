@@ -3160,9 +3160,9 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.collectionVariables.set('webhookEventId', 'evt-postman-' + Date.now());",
-                  "const CryptoJS = require('crypto-js');",
+                  "const hmac = require('crypto-js');",
                   "const rawBody = pm.variables.replaceIn(pm.request.body.raw);",
-                  "const signature = CryptoJS.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(CryptoJS.enc.Hex);",
+                  "const signature = hmac.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(hmac.enc.Hex);",
                   "pm.request.headers.upsert({ key: 'X-Webhook-Signature', value: signature });"
                 ]
               }
@@ -3221,9 +3221,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const CryptoJS = require('crypto-js');",
+                  "const hmac = require('crypto-js');",
                   "const rawBody = pm.variables.replaceIn(pm.request.body.raw);",
-                  "const signature = CryptoJS.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(CryptoJS.enc.Hex);",
+                  "const signature = hmac.HmacSHA256(rawBody, pm.variables.get('webhookSecret')).toString(hmac.enc.Hex);",
                   "pm.request.headers.upsert({ key: 'X-Webhook-Signature', value: signature });"
                 ]
               }
