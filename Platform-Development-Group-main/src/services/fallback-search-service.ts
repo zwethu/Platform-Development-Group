@@ -47,9 +47,16 @@ export function tokenizeQuestion(text: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/i)
     .map((term) => term.trim())
-    .filter((term) => term.length >= MIN_TERM_LENGTH && !STOP_WORDS.has(term))
+    // Single digits stay: "week 3" must not match every "Week N" source equally.
+    .filter((term) => (term.length >= MIN_TERM_LENGTH || /^\d$/.test(term)) && !STOP_WORDS.has(term))
 
   return Array.from(new Set(terms))
+}
+
+/** Where `term` occurs in `text` (-1 if not). Numbers match whole numbers only, so "3" never hits "13" or "2023". */
+function termIndex(text: string, term: string): number {
+  if (!/^\d+$/.test(term)) return text.indexOf(term)
+  return text.search(new RegExp(`(?<!\\d)${term}(?!\\d)`))
 }
 
 /** Always returns a non-empty, bounded-length excerpt, even without content. */
@@ -58,10 +65,10 @@ function buildExcerpt(source: KnowledgeSource, text: string | null, terms: strin
 
   if (content) {
     const lower = content.toLowerCase()
-    const matchedTerm = terms.find((term) => lower.includes(term))
+    const matchedTerm = terms.find((term) => termIndex(lower, term) >= 0)
 
     if (matchedTerm) {
-      const index = lower.indexOf(matchedTerm)
+      const index = termIndex(lower, matchedTerm)
       const start = Math.max(0, index - EXCERPT_CONTEXT_CHARS)
       const end = Math.min(content.length, index + matchedTerm.length + EXCERPT_CONTEXT_CHARS)
       const prefix = start > 0 ? '…' : ''
@@ -112,8 +119,8 @@ export function findChunkMatches(sources: KnowledgeSource[], chunks: SourceChunk
     const keywords = (source.keywords ?? '').toLowerCase()
     let sourceScore = 0
     for (const term of terms) {
-      if (title.includes(term)) sourceScore += TITLE_WEIGHT
-      if (keywords.includes(term)) sourceScore += KEYWORD_WEIGHT
+      if (termIndex(title, term) >= 0) sourceScore += TITLE_WEIGHT
+      if (termIndex(keywords, term) >= 0) sourceScore += KEYWORD_WEIGHT
     }
 
     const own = chunksBySource.get(source.id)
@@ -125,7 +132,7 @@ export function findChunkMatches(sources: KnowledgeSource[], chunks: SourceChunk
       const content = (passage.text ?? '').toLowerCase()
       let score = sourceScore
       for (const term of terms) {
-        if (content.includes(term)) score += CONTENT_WEIGHT
+        if (termIndex(content, term) >= 0) score += CONTENT_WEIGHT
       }
       if (score > 0) candidates.push({ source, ...passage, score })
     }
