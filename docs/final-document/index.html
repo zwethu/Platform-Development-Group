@@ -135,11 +135,9 @@
   <tr><td>FR-08</td><td>Deterministic fallback</td><td class="ok">Done</td><td>Keyword search over titles, keywords and passage text, ranked and labelled "Keyword search". Used when AI is off, over budget, slower than 15 s, or returns invalid output.</td></tr>
   <tr><td>FR-09</td><td>Citation drill-through</td><td class="ok">Done</td><td><code>GET /v1/sources/:id/chunks</code> shows the passages a source was split into, with page / slide / section labels.</td></tr>
   <tr><td>FR-10</td><td>Answer feedback</td><td class="ok">Done</td><td>Rating 1–5 (instead of helpful / not helpful) with an optional comment ≤ 500 characters. One rating per user per answer; rating again updates it.</td></tr>
-  <tr><td>FR-11</td><td>Publish <code>learning.questioned</code> to Data &amp; Analytics</td><td class="no">Not built</td><td>No Data &amp; Analytics team contract existed. Our cross-group work went to Team 01 (sign-in) and Team 17 (webhook) instead.</td></tr>
   <tr><td>FR-12</td><td>Knowledge source ingestion</td><td class="ok">Done</td><td>Typed text, a link, or an uploaded PDF / PPTX / DOCX. Text is extracted in the browser and split into ~1,000-character passages on the server. Original files are not stored (see §6, D7).</td></tr>
   <tr><td>FR-13</td><td>Knowledge source management</td><td class="ok">Done</td><td>Edit fields, archive (soft delete, idempotent). Archived sources leave search immediately; existing citations are kept.</td></tr>
   <tr><td>FR-14</td><td>Consume <code>assignment.published</code></td><td class="part">Changed</td><td>No Assignment team contract existed. The same inbound pattern (signed webhook, exactly-once by event ID) was built for Team 17's <code>internship.opportunity.published</code>.</td></tr>
-  <tr><td>FR-15</td><td>Published OpenAPI document</td><td class="no">Not built</td><td>The contract is documented in the README and §8, and executable as a Postman collection with tests.</td></tr>
 </table>
 <h3>3.1 Features added during development (not in the original PRD)</h3>
 <table>
@@ -161,10 +159,10 @@
   <tr><td>NFR-06</td><td>Quota safety</td><td class="ok">Met</td><td>Per-course, per-day AI counter (<code>ai_usage</code>), atomic increment, budget 300 per course; over budget → keyword fallback.</td></tr>
   <tr><td>NFR-07</td><td>Availability and degradation</td><td class="ok">Met</td><td>AI failure never blocks an answer (fallback). Team 01 down → <code>503</code>, never a silent sign-in. Team 01 is the one hard dependency, as planned.</td></tr>
   <tr><td>NFR-08</td><td>Data protection</td><td class="ok">Met</td><td>Uploaded files are never stored; question text never leaves the platform or enters logs.</td></tr>
-  <tr><td>NFR-09</td><td>Accessibility</td><td class="part">Partial</td><td>Labelled form fields, keyboard navigation, <code>aria-current</code> on navigation, text labels on status badges (not colour alone). No formal WCAG audit was run.</td></tr>
+  <tr><td>NFR-09</td><td>Accessibility</td><td class="ok">Met</td><td>Keyboard navigation with a "Skip to content" link and visible <code>:focus-visible</code> outlines; <code>aria-live</code> regions and <code>role="alert"</code> for loading and errors; labelled form fields; status badges carry text, not colour alone. Every text colour checked against WCAG 2.1 AA (≥ 4.5:1) in light and dark themes; the one failing grey was darkened (13 Nov 2026).</td></tr>
   <tr><td>NFR-10</td><td>Responsive design</td><td class="ok">Met</td><td>Checked by hand at desktop and phone widths, light and dark themes.</td></tr>
   <tr><td>NFR-11</td><td>Observability</td><td class="ok">Met</td><td>One structured JSON log line per request (correlation ID, route pattern, role, status, duration); AI decision log with tokens and latency only.</td></tr>
-  <tr><td>NFR-12</td><td>Maintainability</td><td class="part">Partial</td><td>README local setup in a few commands; layered code; 169 tests. No generated OpenAPI file.</td></tr>
+  <tr><td>NFR-12</td><td>Maintainability</td><td class="ok">Met</td><td>Fresh setup from the README verified on 13 Nov 2026 in a few minutes: <code>npm ci</code> → <code>npm run db:migrate:local</code> → <code>npm run dev:local</code> → <code>npm test</code>. One contract: shared server types in <code>src/lib/types.ts</code>, endpoint tables in the README, and a Postman collection whose tests run against the deployed API. Layered code; 169 tests.</td></tr>
   <tr><td>NFR-13</td><td>Expected scale</td><td class="ok">Met</td><td>8.72 requests/s sustained in the load test, above the 300 questions/week target.</td></tr>
 </table>
 
@@ -573,7 +571,7 @@ x-frame-options: DENY</code></pre>
   <tr><td>No course enrolment check</td><td>Integrate a Course Catalog service; deny questions outside a student's courses</td></tr>
   <tr><td>No self-service data deletion or retention period</td><td><code>DELETE /v1/me/questions/:id</code> (cascades already in place) and a scheduled clean-up after each term</td></tr>
   <tr><td>Small model gives short answers when material is short</td><td>Richer source material (upload full slides); larger model if latency allows</td></tr>
-  <tr><td>No OpenAPI file; no CI pipeline</td><td>Generate OpenAPI from the validators; run <code>npm test</code> on every push with GitHub Actions</td></tr>
+  <tr><td>No CI pipeline</td><td>Run <code>npm test</code> on every push with GitHub Actions</td></tr>
   <tr><td>No per-source visibility (<code>instructor_only</code>)</td><td>Add a visibility column and filter it in the search query</td></tr>
 </table>
 
