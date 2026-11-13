@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learning Assistant — Final Project Document</title>
+<style>
+  :root { --ink:#1f2330; --muted:#5b6275; --line:#e3e6ee; --soft:#f5f6fa; --accent:#5b5bd6; --ok:#1d7a46; --warn:#a15c00; --no:#a3283b; }
+  * { box-sizing: border-box; }
+  body { background:#fff; color:var(--ink); font: 10.5pt/1.55 "Inter","Noto Sans","Segoe UI",Arial,sans-serif; margin:0; }
+  main { max-width: 820px; margin: 0 auto; padding: 32px 24px 64px; }
+  h1 { font-size: 26pt; line-height:1.15; margin: 0 0 6px; letter-spacing:-.01em; }
+  h2 { font-size: 16pt; margin: 34px 0 10px; padding-top: 8px; border-top: 2px solid var(--accent); break-after: avoid; }
+  h3 { font-size: 12pt; margin: 20px 0 6px; break-after: avoid; }
+  p { margin: 6px 0 10px; }
+  a { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 11.5pt; margin-bottom: 18px; }
+  .cover { border-bottom: 1px solid var(--line); padding-bottom: 18px; margin-bottom: 8px; }
+  .meta { display:grid; grid-template-columns: 140px 1fr; gap: 3px 12px; font-size: 10pt; }
+  .meta b { color: var(--muted); font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0 14px; font-size: 9.3pt; break-inside: auto; }
+  th, td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); font-weight: 600; }
+  tr { break-inside: avoid; }
+  code { font: 8.8pt/1.45 "JetBrains Mono","DejaVu Sans Mono",monospace; background: var(--soft); padding: 1px 4px; border-radius: 3px; }
+  pre { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+  pre code { background: none; padding: 0; font-size: 8.4pt; }
+  .ok { color: var(--ok); font-weight: 600; } .part { color: var(--warn); font-weight: 600; } .no { color: var(--no); font-weight: 600; }
+  figure { margin: 12px 0 18px; break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 6px; display: block; }
+  figcaption { color: var(--muted); font-size: 9pt; margin-top: 5px; }
+  .mermaid { margin: 10px 0 16px; text-align: center; break-inside: avoid; background: #fff; }
+  .mermaid svg { max-height: 430px; max-width: 100%; height: auto; }
+  .note { background: #f3f3ff; border-left: 3px solid var(--accent); padding: 8px 12px; margin: 10px 0 14px; font-size: 9.8pt; break-inside: avoid; }
+  .toc { columns: 2; font-size: 10pt; margin: 8px 0 0; padding-left: 18px; }
+  .stats { display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
+  .stat { border:1px solid var(--line); border-radius:8px; padding:10px; text-align:center; }
+  .stat b { display:block; font-size: 17pt; color: var(--accent); }
+  .stat span { font-size: 8.8pt; color: var(--muted); }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .pb { break-before: page; }
+  @page { size: A4; margin: 16mm 14mm; }
+  @media print { main { padding: 0; max-width: none; } h2 { break-before: auto; } }
+</style>
+</head>
+<body>
+<main>
+
+<section class="cover">
+  <h1>Learning Assistant</h1>
+  <div class="sub">Final Project Document · AI answers from instructor-approved course materials, with sources you can check</div>
+  <div class="meta">
+    <b>Course</b><span>1305308 Platform Development, Mae Fah Luang University</span>
+    <b>Team</b><span>Team 08</span>
+    <b>Live system</b><span><a href="https://learning-assistant-api.6731503060.workers.dev">learning-assistant-api.6731503060.workers.dev</a></span>
+    <b>Source code</b><span><a href="https://github.com/zwethu/Platform-Development-Group">github.com/zwethu/Platform-Development-Group</a></span>
+    <b>Integrations</b><span>Team 01 Student Identity (sign-in API) · Team 17 Internships (signed webhook)</span>
+    <b>Document date</b><span>13 November 2026 (system state as evaluated on 10 November 2026)</span>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>169</b><span>automated tests, all passing</span></div>
+    <div class="stat"><b>24</b><span>REST endpoints under /v1</span></div>
+    <div class="stat"><b>11</b><span>database tables, 5 migrations</span></div>
+    <div class="stat"><b>756 ms</b><span>p95 answer latency (load test)</span></div>
+  </div>
+  <ol class="toc">
+    <li>Requirement evidence map</li>
+    <li>Product overview and team</li>
+    <li>Functional requirements</li>
+    <li>Non-functional requirements</li>
+    <li>Architecture</li>
+    <li>Design decisions</li>
+    <li>Data model</li>
+    <li>API reference and example calls</li>
+    <li>External integrations</li>
+    <li>User interface</li>
+    <li>Security and PDPA</li>
+    <li>Testing and quality assurance</li>
+    <li>Development process and AI usage</li>
+    <li>Deployment and operations</li>
+    <li>Limitations and future work</li>
+  </ol>
+</section>
+
+<h2>1. Requirement evidence map</h2>
+<p>How this document and the repository answer each item of the Mini Project submission requirements.</p>
+<table>
+  <tr><th style="width:30%">Requirement</th><th>Evidence</th><th style="width:22%">Section / file</th></tr>
+  <tr><td>1. Completion and cloud deployment</td><td>One Cloudflare Worker serves the web UI and the API; D1 database and Workers AI on Cloudflare. Live URL above. Deep health check reports <code>ok</code>.</td><td>§5, §14 · <code>wrangler.jsonc</code></td></tr>
+  <tr><td>2. Features and Happy Path</td><td>Student signs in → asks → AI answer with citations → rates it. Second path: no source → ask my instructor → reply → saved as FAQ → next student gets a cited answer.</td><td>§3, §10 · Postman folders 3–4</td></tr>
+  <tr><td>3. Cross-group integration (API / webhook)</td><td>Team 01 Student Identity: every sign-in and every API call is verified by Team 01's API. Team 17: HMAC-signed inbound webhook and outbound handshake.</td><td>§9 · <code>src/services/identity-client.ts</code>, <code>src/routes/webhooks.ts</code></td></tr>
+  <tr><td>4. Development process and AI usage</td><td>Architecture, design decisions, workflow, team roles, AI tools per role, commit timeline.</td><td>§5, §6, §13</td></tr>
+  <tr><td>5. Security and PDPA</td><td>Personal data inventory, what is deliberately not collected, PDPA principles, OWASP-mapped controls, live responses proving them.</td><td>§11 · <code>public/_headers</code>, <code>src/middleware/auth.ts</code></td></tr>
+  <tr><td>6. Testing and QA</td><td>169 automated tests (vitest) + 14 manual test cases + Postman collection against the live URL, including failures found and fixed.</td><td>§12 · <code>test/</code>, <code>postman/</code></td></tr>
+  <tr><td>7. Code understanding and live modification</td><td>Layered code map; three fixes were made, tested and redeployed on evaluation day (search numbers, AI answer depth).</td><td>§5.3, §12.4, §14</td></tr>
+</table>
+
+<h2>2. Product overview and team</h2>
+<h3>2.1 Problem</h3>
+<p>Students ask the same course questions again and again, and the answers already exist in the course materials, spread over many slides and PDFs. Instructors answer the same question many times. General AI chatbots answer confidently from outside the course, with no source, so a student cannot tell whether the answer matches the lecture.</p>
+<h3>2.2 Solution</h3>
+<ul>
+  <li><b>Answers come only from approved materials.</b> Instructors decide what the assistant may use.</li>
+  <li><b>Every answer shows its sources</b>, with the passage it came from (and the slide or page for uploaded files).</li>
+  <li><b>It says when it doesn't know.</b> If no approved material covers the question, the student is told so and can ask the instructor in one click.</li>
+  <li><b>Answers improve through the instructor.</b> Low-rated or unanswered questions go to the instructor's inbox; a reply can be saved as a new approved FAQ source.</li>
+</ul>
+<h3>2.3 Users</h3>
+<table>
+  <tr><th>User</th><th>What they do</th></tr>
+  <tr><td>Student</td><td>Ask a question in a course, read the cited answer, rate it, ask the instructor, read replies, browse course materials and internships.</td></tr>
+  <tr><td>Instructor</td><td>Create and archive courses, add materials (typed text or PDF / PowerPoint / Word), reply to student questions, see the Team 17 integration.</td></tr>
+</table>
+<h3>2.4 Team</h3>
+<table>
+  <tr><th>#</th><th>Member</th><th>Role</th><th>Responsible for</th></tr>
+  <tr><td>1</td><td>Khant Wai Lin</td><td>Product Manager</td><td>Scope and priorities, user journeys, acceptance criteria, coordination with partner teams</td></tr>
+  <tr><td>2</td><td>Thura Aung</td><td>Frontend UX/UI</td><td>Web UI screens, usability, accessibility, visual design</td></tr>
+  <tr><td>3</td><td>Thaw Zin Myo Aung</td><td>Backend API and Database</td><td>API endpoints and contract, data model and migrations, data integrity</td></tr>
+  <tr><td>4</td><td>Sai Aung Kham</td><td>Quality and Security</td><td>Test strategy and results, security controls, PDPA review</td></tr>
+  <tr><td>5</td><td>Zwe Thura Aung</td><td>Delivery and Document</td><td>Delivery plan and releases, documentation and evidence</td></tr>
+</table>
+
+<h2>3. Functional requirements</h2>
+<p>The requirements were written in the PRD in August 2026 (<code>md_files/PRD.md</code>). This table records what was built. Where the design changed, the reason is given; nothing is marked done unless it runs in the deployed system.</p>
+<table>
+  <tr><th style="width:8%">ID</th><th style="width:22%">Requirement</th><th style="width:10%">Status</th><th>As built</th></tr>
+  <tr><td>FR-01</td><td>Authenticated access</td><td class="ok">Done</td><td>Every non-public route requires a Team 01 Student Identity token, verified by calling Team 01's <code>GET /me</code>. Missing or invalid token → <code>401</code>. (Team 01 publishes no signing keys, so we verify by API instead of JWKS.)</td></tr>
+  <tr><td>FR-02</td><td>Course-scoped listing</td><td class="part">Partial</td><td>Instructors create courses; students see active courses only. There is no enrolment check, because no Course Catalog service was available to integrate.</td></tr>
+  <tr><td>FR-03</td><td>Ask a question</td><td class="ok">Done</td><td>3–1000 characters, one course, course must be active. Answered in the same request (<code>201</code>) instead of <code>202</code> + polling, because answers return in under a second.</td></tr>
+  <tr><td>FR-04</td><td>Cited answer</td><td class="ok">Done</td><td>Each answer lists numbered sources with the passage excerpt and its location (e.g. "Slide 14").</td></tr>
+  <tr><td>FR-05</td><td>Approved-source retrieval</td><td class="ok">Done</td><td>Search reads only <code>approved</code>, non-archived sources of the question's own course. (Per-source <code>instructor_only</code> visibility was not built.)</td></tr>
+  <tr><td>FR-06</td><td>No-source response</td><td class="ok">Done</td><td>No matching passage, or the AI judges the passages don't answer it → fixed "not found in approved materials" message, no citations, status <code>no_source_found</code>.</td></tr>
+  <tr><td>FR-07</td><td>Citation validation</td><td class="ok">Done</td><td>Model output must be JSON, must cite at least one passage, and may cite only passages that were sent. Anything else is rejected and the keyword fallback is used.</td></tr>
+  <tr><td>FR-08</td><td>Deterministic fallback</td><td class="ok">Done</td><td>Keyword search over titles, keywords and passage text, ranked and labelled "Keyword search". Used when AI is off, over budget, slower than 15 s, or returns invalid output.</td></tr>
+  <tr><td>FR-09</td><td>Citation drill-through</td><td class="ok">Done</td><td><code>GET /v1/sources/:id/chunks</code> shows the passages a source was split into, with page / slide / section labels.</td></tr>
+  <tr><td>FR-10</td><td>Answer feedback</td><td class="ok">Done</td><td>Rating 1–5 (instead of helpful / not helpful) with an optional comment ≤ 500 characters. One rating per user per answer; rating again updates it.</td></tr>
+  <tr><td>FR-11</td><td>Publish <code>learning.questioned</code> to Data &amp; Analytics</td><td class="no">Not built</td><td>No Data &amp; Analytics team contract existed. Our cross-group work went to Team 01 (sign-in) and Team 17 (webhook) instead.</td></tr>
+  <tr><td>FR-12</td><td>Knowledge source ingestion</td><td class="ok">Done</td><td>Typed text, a link, or an uploaded PDF / PPTX / DOCX. Text is extracted in the browser and split into ~1,000-character passages on the server. Original files are not stored (see §6, D7).</td></tr>
+  <tr><td>FR-13</td><td>Knowledge source management</td><td class="ok">Done</td><td>Edit fields, archive (soft delete, idempotent). Archived sources leave search immediately; existing citations are kept.</td></tr>
+  <tr><td>FR-14</td><td>Consume <code>assignment.published</code></td><td class="part">Changed</td><td>No Assignment team contract existed. The same inbound pattern (signed webhook, exactly-once by event ID) was built for Team 17's <code>internship.opportunity.published</code>.</td></tr>
+  <tr><td>FR-15</td><td>Published OpenAPI document</td><td class="no">Not built</td><td>The contract is documented in the README and §8, and executable as a Postman collection with tests.</td></tr>
+</table>
+<h3>3.1 Features added during development (not in the original PRD)</h3>
+<table>
+  <tr><th>Feature</th><th>Why</th></tr>
+  <tr><td>Course management (create, rename, archive / restore)</td><td>Every source and question must belong to a real course (migration 0005).</td></tr>
+  <tr><td>"Ask my instructor", instructor inbox and replies</td><td>Gives the no-source case a human next step (PRD S-04). Replies can become FAQ sources, so the knowledge base grows.</td></tr>
+  <tr><td>"My questions" with unread-reply badges</td><td>Students can come back to earlier questions and see replies.</td></tr>
+  <tr><td>Deep health check <code>/v1/health/ready</code></td><td>Reports database, tables, AI and budget status; used for operations.</td></tr>
+</table>
+
+<h2>4. Non-functional requirements</h2>
+<table>
+  <tr><th style="width:8%">ID</th><th style="width:22%">Requirement</th><th style="width:10%">Status</th><th>Evidence</th></tr>
+  <tr><td>NFR-01</td><td>Answer latency</td><td class="ok">Met</td><td>Load test, 100 requests: p50 541 ms, <b>p95 756 ms</b>, p99 829 ms (budget p95 ≤ 5000 ms). AI abandoned after 15 s (<code>AI_TIMEOUT_MS</code>).</td></tr>
+  <tr><td>NFR-02</td><td>Worker CPU budget</td><td class="ok">Met</td><td>No file parsing on the server: PDF / PPTX / DOCX text is extracted in the browser.</td></tr>
+  <tr><td>NFR-03</td><td>Authentication boundary</td><td class="ok">Met</td><td>No passwords, hashes or user secrets stored. Passwords go from the browser straight to Team 01.</td></tr>
+  <tr><td>NFR-04</td><td>Authorization enforcement</td><td class="ok">Met</td><td><code>requireAuth</code>, <code>requireRole</code> and ownership checks on the server; retrieval filtered by course and status before the AI sees anything.</td></tr>
+  <tr><td>NFR-05</td><td>Cost</td><td class="ok">Met</td><td>Cloudflare free tier only: Workers, D1, Workers AI. No paid component.</td></tr>
+  <tr><td>NFR-06</td><td>Quota safety</td><td class="ok">Met</td><td>Per-course, per-day AI counter (<code>ai_usage</code>), atomic increment, budget 300 per course; over budget → keyword fallback.</td></tr>
+  <tr><td>NFR-07</td><td>Availability and degradation</td><td class="ok">Met</td><td>AI failure never blocks an answer (fallback). Team 01 down → <code>503</code>, never a silent sign-in. Team 01 is the one hard dependency, as planned.</td></tr>
+  <tr><td>NFR-08</td><td>Data protection</td><td class="ok">Met</td><td>Uploaded files are never stored; question text never leaves the platform or enters logs.</td></tr>
+  <tr><td>NFR-09</td><td>Accessibility</td><td class="part">Partial</td><td>Labelled form fields, keyboard navigation, <code>aria-current</code> on navigation, text labels on status badges (not colour alone). No formal WCAG audit was run.</td></tr>
+  <tr><td>NFR-10</td><td>Responsive design</td><td class="ok">Met</td><td>Checked by hand at desktop and phone widths, light and dark themes.</td></tr>
+  <tr><td>NFR-11</td><td>Observability</td><td class="ok">Met</td><td>One structured JSON log line per request (correlation ID, route pattern, role, status, duration); AI decision log with tokens and latency only.</td></tr>
+  <tr><td>NFR-12</td><td>Maintainability</td><td class="part">Partial</td><td>README local setup in a few commands; layered code; 169 tests. No generated OpenAPI file.</td></tr>
+  <tr><td>NFR-13</td><td>Expected scale</td><td class="ok">Met</td><td>8.72 requests/s sustained in the load test, above the 300 questions/week target.</td></tr>
+</table>
+
+<h2>5. Architecture</h2>
+<h3>5.1 Components</h3>
+<pre class="mermaid">
+flowchart LR
+  subgraph Browser
+    UI["Web UI (HTML + JS)"]
+  end
+  subgraph CF["Cloudflare - one Worker"]
+    ASSETS["Static assets public/"]
+    API["Hono API /v1"]
+    D1[("D1 SQLite")]
+    AI["Workers AI llama-3.2-3b"]
+  end
+  T01["Team 01 Student Identity"]
+  T17["Team 17 Internships"]
+  UI -- "sign in" --> T01
+  UI -- "API + Bearer token" --> API
+  API -- "verify token GET /me" --> T01
+  API -- "SQL, bound parameters" --> D1
+  API -- "question + approved passages" --> AI
+  T17 -- "signed webhook" --> API
+  API -- "signed handshake" --> T17
+  ASSETS -.-> UI
+</pre>
+<table>
+  <tr><th>Component</th><th>Technology</th><th>Role</th></tr>
+  <tr><td>Web UI</td><td>Plain HTML, CSS, JavaScript (<code>public/</code>)</td><td>Screens for students and instructors; extracts text from uploaded files. Holds no secret and makes no security decision.</td></tr>
+  <tr><td>API</td><td>Cloudflare Worker + Hono, TypeScript (<code>src/</code>)</td><td>The only trust decision point: authentication, roles, validation, retrieval, AI call, citation checks.</td></tr>
+  <tr><td>Database</td><td>Cloudflare D1 (SQLite)</td><td>All relational data, with foreign keys, UNIQUE and CHECK constraints.</td></tr>
+  <tr><td>AI</td><td>Workers AI, <code>@cf/meta/llama-3.2-3b-instruct</code></td><td>Writes the answer from the selected passages only.</td></tr>
+  <tr><td>Identity</td><td>Team 01 Student Identity (external)</td><td>Accounts, passwords, tokens.</td></tr>
+</table>
+
+<h3>5.2 Request flow: a student asks a question</h3>
+<pre class="mermaid">
+sequenceDiagram
+  participant S as Student browser
+  participant W as Worker /v1/questions
+  participant T as Team 01 Identity
+  participant DB as D1
+  participant AI as Workers AI
+  S->>W: POST /v1/questions + Bearer token
+  W->>T: GET /me (cached 60 s)
+  T-->>W: 200 token is genuine
+  W->>W: role student? length 3-1000? course active?
+  W->>DB: keyword search over approved passages of this course
+  alt passages found and AI within budget
+    W->>AI: fixed system prompt + numbered passages as data + question
+    AI-->>W: JSON answer + citation numbers
+    W->>W: validate JSON and citations
+  else no AI, timeout, invalid output
+    W->>W: labelled keyword-search answer
+  end
+  W->>DB: insert question, answer, citations
+  W-->>S: 201 answer + sources + mode
+</pre>
+
+<h3>5.3 Code layout</h3>
+<pre><code>src/index.ts          wires middleware and routes under /v1
+src/middleware/       correlation id → request logger → auth (per route)
+src/routes/           HTTP layer: parse and validate input, check role, shape response
+src/services/         AI answer, keyword search, chunking, identity client
+src/repositories/     all SQL, always with bound parameters
+src/lib/              validation, error shape, structured logger, constants
+migrations/           0001 → 0005, applied in order
+public/               web UI (app.js, file-extract.js, vendor/pdf.js + JSZip)
+test/                 17 vitest files, 169 tests
+postman/              full collection, final demo collection, production environment</code></pre>
+
+<h2>6. Design decisions</h2>
+<table>
+  <tr><th style="width:4%">#</th><th style="width:24%">Decision</th><th>Why</th><th style="width:26%">Rejected alternative</th></tr>
+  <tr><td>D1</td><td>One Worker serves both UI and API</td><td>One deploy command; same origin, so no CORS and a strict same-origin Content-Security-Policy.</td><td>React SPA on Cloudflare Pages + separate API (two deploys, CORS)</td></tr>
+  <tr><td>D2</td><td>Plain HTML/JS, no framework</td><td>No build step; small enough for five people to read; easy to keep XSS-safe (<code>textContent</code> only).</td><td>React + Vite (planned in PRD)</td></tr>
+  <tr><td>D3</td><td>Sign-in delegated to Team 01, verified by API call</td><td>Team 01 publishes no signing keys, so we ask their <code>GET /me</code>; 60 s cache keyed by a SHA-256 hash of the token keeps it fast.</td><td>Own accounts; local JWT check with JWKS (not available)</td></tr>
+  <tr><td>D4</td><td>Keyword search over passages</td><td>Free, deterministic, explainable, and always available as the fallback. Weakness: misses paraphrases.</td><td>Vector search (Vectorize not on free plan); FTS5</td></tr>
+  <tr><td>D5</td><td>Llama 3.2 3B instead of 8B</td><td>Load test: p95 fell from 4091 ms to 756 ms with acceptable answers.</td><td>Larger 8B model</td></tr>
+  <tr><td>D6</td><td>AI with guardrails and a fallback</td><td>Passages sent as data, JSON-only output, citation validation, 15 s timeout, daily budget. The product works with AI off.</td><td>AI-only answers</td></tr>
+  <tr><td>D7</td><td>Extract file text in the browser, keep no files</td><td>Stays within the Worker CPU limit; no file storage to secure (privacy); no R2 or cron needed.</td><td>R2 storage + cron extraction job</td></tr>
+  <tr><td>D8</td><td>Synchronous answer (<code>201</code>)</td><td>Answers arrive in under a second, so polling adds complexity without benefit.</td><td><code>202</code> + polling</td></tr>
+  <tr><td>D9</td><td>Integrity rules in the database</td><td><code>UNIQUE(question_id)</code> on answers, CHECK constraints on status / mode / rating, event ID as primary key for webhook idempotency. A race cannot slip past a constraint.</td><td>Check-then-insert in code</td></tr>
+  <tr><td>D10</td><td>Archive instead of delete</td><td>Removes a source from search at once while keeping citations already shown to students.</td><td>Hard delete</td></tr>
+</table>
+
+<h2>7. Data model</h2>
+<pre class="mermaid">
+erDiagram
+  courses ||--o{ knowledge_sources : has
+  courses ||--o{ questions : has
+  knowledge_sources ||--o{ source_chunks : "split into"
+  knowledge_sources ||--o{ citations : "cited by"
+  questions ||--|| answers : "has one"
+  answers ||--o{ citations : cites
+  answers ||--o{ answer_feedback : "rated by"
+  questions ||--o{ instructor_replies : "replied to"
+</pre>
+<table>
+  <tr><th style="width:24%">Table</th><th>Purpose and key rules</th></tr>
+  <tr><td><code>courses</code></td><td>Course code (<code>id</code>), name, description, <code>active</code> | <code>archived</code>.</td></tr>
+  <tr><td><code>knowledge_sources</code></td><td>Approved material for one course: title, type, content, keywords, file name, status <code>draft</code> | <code>approved</code> | <code>archived</code> (CHECK).</td></tr>
+  <tr><td><code>source_chunks</code></td><td>~1,000-character passages of a source with a location label ("Page 3", "Slide 14"). What search ranks.</td></tr>
+  <tr><td><code>questions</code></td><td>Course, asking student ID, text, status <code>pending</code> | <code>answered</code> | <code>no_source_found</code> | <code>failed</code>, escalation time and note.</td></tr>
+  <tr><td><code>answers</code></td><td>One per question (<code>question_id</code> UNIQUE + FK, cascade). <code>mode</code> <code>ai</code> | <code>fallback</code>, <code>no_source_found</code> flag.</td></tr>
+  <tr><td><code>citations</code></td><td>Links an answer to a source excerpt with score and location. FK to answer (cascade) and source (restrict: cited sources are archived, never deleted).</td></tr>
+  <tr><td><code>answer_feedback</code></td><td>Rating 1–5 (CHECK), comment ≤ 500, one row per user per answer.</td></tr>
+  <tr><td><code>instructor_replies</code></td><td>Reply text, instructor ID, FAQ source created from it (if any), when the student read it.</td></tr>
+  <tr><td><code>received_events</code></td><td>Inbound webhook ledger; <code>event_id</code> is the primary key, so a replay cannot be processed twice.</td></tr>
+  <tr><td><code>outbound_webhook_deliveries</code></td><td>Log of every outbound Team 17 delivery attempt and result; never secrets or headers.</td></tr>
+  <tr><td><code>ai_usage</code></td><td>AI calls per course per UTC day, for the budget.</td></tr>
+</table>
+<p><b>Migrations:</b> 0001 core tables and 8 indexes · 0002 outbound deliveries · 0003 AI budget · 0004 passages, replies, escalation · 0005 courses. Indexes match the real queries, e.g. <code>knowledge_sources(course_id, status)</code> and <code>questions(student_id, created_at)</code>. <code>/v1/health/ready</code> reports <code>down</code> if any table is missing.</p>
+
+<h2>8. API reference and example calls</h2>
+<p>Base URL <code>https://learning-assistant-api.6731503060.workers.dev</code>. JSON only. Success: <code>{"data": …}</code>. Error: <code>{"error": {"code", "message", "correlationId"}}</code>. Every response carries an <code>x-correlation-id</code> header.</p>
+<table>
+  <tr><th style="width:9%">Method</th><th style="width:33%">Path</th><th style="width:16%">Who</th><th>Purpose</th></tr>
+  <tr><td>GET</td><td><code>/v1/health</code></td><td>public</td><td>Liveness</td></tr>
+  <tr><td>GET</td><td><code>/v1/health/ready</code></td><td>public</td><td>Database, tables, AI, budget (<code>?probe=ai</code> makes one model call)</td></tr>
+  <tr><td>GET</td><td><code>/v1/auth/config</code></td><td>public</td><td>Which sign-in mode is active</td></tr>
+  <tr><td>GET</td><td><code>/v1/me</code></td><td>signed in</td><td>Caller's ID and role</td></tr>
+  <tr><td>GET</td><td><code>/v1/courses</code>, <code>/v1/courses/:id</code></td><td>student, instructor</td><td>List / read courses</td></tr>
+  <tr><td>POST / PATCH</td><td><code>/v1/courses</code>, <code>/v1/courses/:id</code></td><td>instructor</td><td>Create; rename, describe, archive / restore</td></tr>
+  <tr><td>GET</td><td><code>/v1/courses/:id/sources</code></td><td>student, instructor</td><td>Approved sources of a course</td></tr>
+  <tr><td>POST / PATCH / DELETE</td><td><code>/v1/sources</code>, <code>/v1/sources/:id</code></td><td>instructor</td><td>Create (text or file passages), edit, archive</td></tr>
+  <tr><td>GET</td><td><code>/v1/sources/:id/chunks</code></td><td>student, instructor</td><td>Passages with page / slide labels</td></tr>
+  <tr><td>POST</td><td><code>/v1/questions</code></td><td>student</td><td>Ask; returns the answer with citations</td></tr>
+  <tr><td>GET</td><td><code>/v1/questions/:id</code></td><td>owner, instructor</td><td>Question, answer, citations, replies</td></tr>
+  <tr><td>GET</td><td><code>/v1/me/questions</code></td><td>student</td><td>Own questions with unread-reply counts</td></tr>
+  <tr><td>POST</td><td><code>/v1/questions/:id/escalate</code></td><td>owner</td><td>"Ask my instructor" with optional note</td></tr>
+  <tr><td>POST</td><td><code>/v1/questions/:id/replies</code></td><td>instructor</td><td>Reply; <code>addToSources: true</code> saves it as an FAQ</td></tr>
+  <tr><td>GET</td><td><code>/v1/instructor/inbox</code></td><td>instructor</td><td>Questions needing a person</td></tr>
+  <tr><td>POST</td><td><code>/v1/answers/feedback</code></td><td>student, instructor</td><td>Rate 1–5 (201 first time, 200 when changed)</td></tr>
+  <tr><td>GET</td><td><code>/v1/integration/status</code></td><td>public</td><td>Integration status for partner teams</td></tr>
+  <tr><td>POST</td><td><code>/v1/webhooks/internship</code></td><td>HMAC signature</td><td>Team 17 inbound webhook</td></tr>
+  <tr><td>POST / GET</td><td><code>/v1/integrations/team17/test-send</code>, <code>…/deliveries</code></td><td>integration key</td><td>Outbound handshake to Team 17 and its log</td></tr>
+</table>
+
+<h3>8.1 Ask a question (AI answer)</h3>
+<pre><code>POST /v1/questions
+Authorization: Bearer &lt;Student Identity token&gt;
+Content-Type: application/json
+
+{"courseId": "1305308", "questionText": "Why should constraints be enforced in the database?"}</code></pre>
+<pre><code>201 Created
+{
+  "data": {
+    "question": { "id": "403cc3de-…", "courseId": "1305308", "status": "answered" },
+    "answer": {
+      "id": "b8f490e7-…",
+      "content": "Constraints should be enforced in the database because foreign keys, CHECK, and UNIQUE constraints are enforced in the database, not in a prior SELECT. This means that the database will ensure data integrity by preventing invalid or inconsistent data …",
+      "mode": "ai",
+      "noSourceFound": false
+    },
+    "citations": [{
+      "sourceId": "d970ace2-…",
+      "sourceTitle": "Week 4 — Platform Data",
+      "excerpt": "…Constraints such as foreign keys, CHECK and UNIQUE are enforced in the…",
+      "score": 5
+    }],
+    "generation": { "mode": "ai", "fallbackReason": null, "model": "@cf/meta/llama-3.2-3b-instruct" }
+  }
+}</code></pre>
+
+<h3>8.2 Rate the answer</h3>
+<pre><code>POST /v1/answers/feedback
+{"answerId": "b8f490e7-…", "rating": 5, "comment": "Clear and cited."}
+
+201 Created
+{"data": {"id": "c7933196-…", "answerId": "b8f490e7-…", "userId": "6731503060", "rating": 5,
+          "comment": "Clear and cited.", "createdAt": "2026-11-13T14:38:48.947Z"}}</code></pre>
+
+<h3>8.3 Rejected requests</h3>
+<table>
+  <tr><th>Request</th><th>Response</th></tr>
+  <tr><td>Another student opens <code>GET /v1/questions/403cc3de-…</code></td><td><code>403 {"error":{"code":"FORBIDDEN","message":"You do not have access to this question."}}</code></td></tr>
+  <tr><td>Student calls <code>POST /v1/sources</code></td><td><code>403 {"error":{"code":"FORBIDDEN","message":"You do not have access to this operation."}}</code></td></tr>
+  <tr><td><code>POST /v1/questions</code> with <code>"questionText": "hi"</code></td><td><code>400 {"error":{"code":"VALIDATION_ERROR","message":"questionText must be between 3 and 1000 characters."}}</code></td></tr>
+  <tr><td><code>GET /v1/me</code> with a fake token (live site)</td><td><code>401 {"error":{"code":"UNAUTHORIZED","message":"Your sign-in is invalid or has expired. Please sign in again."}}</code></td></tr>
+</table>
+
+<h3>8.4 Deep health (live site, 13 Nov 2026)</h3>
+<pre><code>GET /v1/health/ready
+200 {"status":"ok","answerPath":"ai_with_fallback",
+     "checks":{"database":{"status":"pass","detail":{"tables":9}},
+               "ai":{"status":"pass","detail":{"model":"@cf/meta/llama-3.2-3b-instruct"}},
+               "ai_budget":{"status":"pass","detail":{"invocationsToday":0,"dailyBudgetPerCourse":300}}}}</code></pre>
+
+<h2>9. External integrations</h2>
+<h3>9.1 Team 01 — Student Identity (API)</h3>
+<p>The Learning Assistant has no accounts or passwords of its own. Every user signs in with Team 01's Student Identity at <code>https://student-identity.onrender.com</code>, and every API request is trusted only after Team 01 confirms the token.</p>
+<pre class="mermaid">
+sequenceDiagram
+  participant B as Browser (our UI)
+  participant T as Team 01 Student Identity
+  participant W as Team 08 API
+  B->>T: POST /auth/login {studentId, password}
+  T-->>B: 200 {token}
+  Note over B: token in sessionStorage, password field cleared
+  B->>W: GET /v1/me, Authorization Bearer token
+  W->>T: GET /me, Authorization Bearer token
+  T-->>W: 200 genuine, unexpired
+  W-->>B: 200 {id, role}
+</pre>
+<table>
+  <tr><th>Situation</th><th>Our response</th></tr>
+  <tr><td>No token, or demo headers claiming instructor</td><td><code>401 UNAUTHORIZED</code></td></tr>
+  <tr><td>Fake, edited or expired token</td><td><code>401</code> "Your sign-in is invalid or has expired."</td></tr>
+  <tr><td>Valid student token on an instructor route</td><td><code>403 FORBIDDEN</code></td></tr>
+  <tr><td>Team 01 down or answering 5xx</td><td><code>503 DEPENDENCY_UNAVAILABLE</code>; never let in</td></tr>
+</table>
+<p><b>Code:</b> <code>src/services/identity-client.ts</code> (25 s timeout for Team 01's sleeping free host, 60 s cache keyed by SHA-256 of the token, profile body discarded), <code>src/middleware/auth.ts</code> (role mapping: <code>student</code> → student; <code>instructor</code>, <code>staff</code>, <code>admin</code> or <code>INSTRUCTOR_IDS</code> → instructor; anything else → 403). <b>Tests:</b> 11 in <code>test/identity-auth.test.ts</code>.</p>
+
+<h3>9.2 Team 17 — Internships (webhook)</h3>
+<p>When Team 17 publishes an internship, it sends <code>internship.opportunity.published</code> to <code>POST /v1/webhooks/internship</code>. We verify an HMAC-SHA-256 signature over the raw body (constant-time <code>crypto.subtle.verify</code>), record the event ID, and create one approved source in the <code>CAREER</code> course, so students can ask about internships and get cited answers.</p>
+<table>
+  <tr><th>Case</th><th>Response</th></tr>
+  <tr><td>New, correctly signed event</td><td><code>202 {"status":"accepted","knowledgeSourceId":"…"}</code></td></tr>
+  <tr><td>Same <code>eventId</code> again (replay)</td><td><code>200 {"status":"duplicate","processed":false}</code>, no second source</td></tr>
+  <tr><td>Missing or wrong signature</td><td><code>401 UNAUTHORIZED</code>, nothing stored</td></tr>
+  <tr><td>Invalid payload</td><td><code>400 VALIDATION_ERROR</code></td></tr>
+</table>
+<p>Outbound, <code>POST /v1/integrations/team17/test-send</code> sends a signed <code>partner.updated</code> handshake to Team 17 and logs each attempt in <code>outbound_webhook_deliveries</code>. The destination URL is fixed in configuration, never taken from the caller. Secrets are Cloudflare secrets, never in the repository. Contract: <code>docs/team17-integration-contract.md</code>. Tests: <code>internship-webhook</code>, <code>webhook-signature</code>, <code>team17-integration</code> (21 tests).</p>
+
+<h2>10. User interface</h2>
+<p>Screens below were captured on 13 Nov 2026. The sign-in screen is from the live site; the others are from the same code run locally with the real Workers AI model and the course's seeded materials (the local build's development role switcher is hidden; the live site shows the signed-in student ID instead).</p>
+<figure><img src="img/10-live-signin.png" alt="Sign-in screen"><figcaption>Figure 1. Live site: sign in with Team 01 Student Identity. The password goes directly to Team 01.</figcaption></figure>
+<figure><img src="img/01-ask-ai-answer.png" alt="AI answer with citation"><figcaption>Figure 2. Student asks a question and gets an AI answer, labelled with the model, citing "Week 3 — Contract-first API Design". Rating 1–5 below.</figcaption></figure>
+<figure><img src="img/02-no-source-answer.png" alt="No source answer"><figcaption>Figure 3. Off-topic question: no approved material covers it, so no answer is invented. The student can ask the instructor.</figcaption></figure>
+<div class="grid2">
+<figure><img src="img/03-my-questions.png" alt="My questions"><figcaption>Figure 4. My questions: status and answer type for each question.</figcaption></figure>
+<figure><img src="img/07-instructor-inbox.png" alt="Instructor inbox"><figcaption>Figure 5. Instructor inbox: questions that need a person.</figcaption></figure>
+<figure><img src="img/05-instructor-courses.png" alt="Courses"><figcaption>Figure 6. Instructor creates and archives courses.</figcaption></figure>
+<figure><img src="img/08-integration.png" alt="Team 17 integration"><figcaption>Figure 7. Team 17 integration page: how it works, status and delivery log.</figcaption></figure>
+</div>
+<figure><img src="img/06-instructor-sources.png" alt="Knowledge sources"><figcaption>Figure 8. Instructor adds materials as typed text or an uploaded PDF / PowerPoint / Word file.</figcaption></figure>
+<figure><img src="img/09-system-status.png" alt="System status"><figcaption>Figure 9. System status: live readiness of the database, AI and AI budget.</figcaption></figure>
+
+<h2>11. Security and PDPA</h2>
+<p>PDPA here means Thailand's Personal Data Protection Act B.E. 2562 (2019).</p>
+<h3>11.1 Personal data we hold</h3>
+<table>
+  <tr><th>Data</th><th>Why</th><th>Who can see it</th></tr>
+  <tr><td>User ID (Student Identity <code>sub</code>)</td><td>Own questions, one rating per user, who changed materials</td><td>The user; instructors</td></tr>
+  <tr><td>Question text, "ask my instructor" note</td><td>Answer the question; tell the instructor what is unclear</td><td>The asking student; instructors</td></tr>
+  <tr><td>Rating and comment</td><td>Answer quality; low ratings go to the instructor</td><td>Instructors</td></tr>
+  <tr><td>Instructor reply</td><td>Answer the student</td><td>The asking student; instructors</td></tr>
+</table>
+<h3>11.2 Deliberately not collected or kept</h3>
+<table>
+  <tr><th>Not kept</th><th>How</th></tr>
+  <tr><td>Passwords</td><td>Sent from the browser straight to Team 01; our server never receives them; the form clears the field.</td></tr>
+  <tr><td>Name, email, profile</td><td>Team 01's <code>/me</code> response body is discarded; only <code>sub</code> and <code>role</code> are used, and the role is not stored.</td></tr>
+  <tr><td>Uploaded files</td><td>Text is extracted in the browser; the file is never uploaded or stored.</td></tr>
+  <tr><td>Tokens, question or answer text in logs</td><td>Logs hold only IDs, lengths, counts, outcomes and the route pattern. The token cache is keyed by a SHA-256 hash.</td></tr>
+  <tr><td>User IDs sent to the AI</td><td>The model receives only the question and the selected passages, inside Cloudflare (no outside AI company).</td></tr>
+</table>
+<h3>11.3 PDPA principles</h3>
+<table>
+  <tr><th style="width:28%">Principle</th><th>How it is met</th></tr>
+  <tr><td>Purpose limitation (s.21)</td><td>Data is used only to answer course questions and support students. No analytics, advertising or sharing.</td></tr>
+  <tr><td>Data minimisation (s.22)</td><td>Only <code>sub</code> and <code>role</code> from the identity provider; no profile data.</td></tr>
+  <tr><td>Lawful basis (s.24)</td><td>Processing is needed to provide the learning service the student signs in to use.</td></tr>
+  <tr><td>Access control</td><td>Students see only their own questions (403 otherwise); only instructors see the inbox.</td></tr>
+  <tr><td>Security of processing (s.37(1))</td><td>HTTPS only, token verification, roles, validation, CSP (§11.4).</td></tr>
+  <tr><td>Transparency</td><td>Each answer says whether it is AI or keyword search, and which sources it used. The sign-in page explains where the password goes.</td></tr>
+  <tr><td>Session data</td><td>The token is kept in <code>sessionStorage</code> and removed when the tab closes.</td></tr>
+</table>
+<p><b>Known gaps:</b> no self-service deletion of a student's questions yet (right to erasure, s.33; the foreign keys already cascade, so the endpoint is small), no automatic retention period, and up to 50 recent questions are cached in the browser's <code>localStorage</code> for "My questions".</p>
+
+<h3>11.4 Security controls (OWASP Top 10)</h3>
+<table>
+  <tr><th style="width:24%">Threat</th><th>Control</th><th style="width:24%">Where</th></tr>
+  <tr><td>A01 Broken access control</td><td><code>requireAuth</code> on every non-public route, <code>requireRole</code> for instructor routes, ownership checks for questions and ratings</td><td><code>src/middleware/auth.ts</code>, routes</td></tr>
+  <tr><td>A07 Authentication failures</td><td>Every token verified by Team 01 (cache ≤ 60 s, never past expiry); edited or expired tokens rejected; Team 01 down → 503</td><td><code>identity-client.ts</code></td></tr>
+  <tr><td>A03 SQL injection</td><td>Bound parameters everywhere; dynamic <code>UPDATE</code> columns from a fixed allowlist</td><td><code>src/repositories/</code></td></tr>
+  <tr><td>A03 XSS</td><td><code>textContent</code> only, never <code>innerHTML</code>; only http(s) links rendered</td><td><code>public/app.js</code></td></tr>
+  <tr><td>Prompt injection</td><td>Passages sent as delimited data; fixed system prompt; JSON-only output; only sent passages may be cited</td><td><code>ai-answer-service.ts</code></td></tr>
+  <tr><td>A05 Misconfiguration / clickjacking</td><td>Strict CSP, <code>X-Frame-Options: DENY</code>, <code>nosniff</code>, <code>no-referrer</code>, camera / microphone / location disabled</td><td><code>public/_headers</code></td></tr>
+  <tr><td>A04 Abuse and cost</td><td>Input limits (question 3–1000, comment ≤ 500, rating 1–5, file ≤ 25 MB); per-course AI budget; 15 s AI timeout</td><td><code>src/lib/constants.ts</code></td></tr>
+  <tr><td>Webhook forgery and replay</td><td>HMAC-SHA-256, constant-time compare; event ID primary key</td><td><code>webhook-signature.ts</code></td></tr>
+  <tr><td>A09 Logging / error leakage</td><td>Structured logs with correlation IDs; generic 500 to clients, stack only in server logs</td><td><code>request-logger.ts</code>, <code>index.ts</code></td></tr>
+  <tr><td>Secrets</td><td>None in the repository; Cloudflare secrets per deployment</td><td><code>.dev.vars.example</code></td></tr>
+</table>
+<h3>11.5 Evidence from the live site (13 Nov 2026)</h3>
+<pre><code>$ curl -i https://learning-assistant-api.6731503060.workers.dev/v1/me -H "Authorization: Bearer not-a-real-token"
+HTTP/2 401
+{"error":{"code":"UNAUTHORIZED","message":"Your sign-in is invalid or has expired. Please sign in again.", …}}
+
+$ curl -I https://learning-assistant-api.6731503060.workers.dev/
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+  connect-src 'self' https://student-identity.onrender.com; font-src 'self'; object-src 'none';
+  base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+permissions-policy: camera=(), microphone=(), geolocation=(), payment=()
+referrer-policy: no-referrer
+x-content-type-options: nosniff
+x-frame-options: DENY</code></pre>
+
+<h2>12. Testing and quality assurance</h2>
+<h3>12.1 Automated tests</h3>
+<p>Framework: vitest. Command: <code>npm test</code>. Routes are called through Hono directly against an in-memory SQLite database with all migrations applied, so the real SQL runs; Team 01 and Workers AI are replaced by fakes. <b>Result on 13 Nov 2026: 17 files, 169 tests, all passing.</b></p>
+<table>
+  <tr><th>Test file</th><th>Tests</th><th>What it proves</th></tr>
+  <tr><td><code>source-uploads</code></td><td>23</td><td>PDF/PPTX/DOCX passages, slide-level citations, size and type limits, instructor-only</td></tr>
+  <tr><td><code>courses</code></td><td>18</td><td>Course create/archive, code validation, end-to-end flow</td></tr>
+  <tr><td><code>routes-auth-and-validation</code></td><td>16</td><td>Role restrictions, 400 before touching the database, correlation IDs</td></tr>
+  <tr><td><code>ai-answer-service</code></td><td>15</td><td>Invented or missing citations rejected, prompt injection kept as data, timeout fallback</td></tr>
+  <tr><td><code>instructor-replies</code></td><td>13</td><td>Escalation, inbox, private replies, reply saved as FAQ</td></tr>
+  <tr><td><code>validation</code> / <code>domain-constants</code></td><td>23</td><td>Validation helpers, status / rating / length rules</td></tr>
+  <tr><td><code>identity-auth</code></td><td>11</td><td>Team 01 sign-in: forged / expired tokens, 503 when Team 01 is down</td></tr>
+  <tr><td><code>team17-integration</code> / <code>internship-webhook</code> / <code>webhook-signature</code></td><td>21</td><td>Outbound handshake, signed inbound webhook, replay safety, HMAC</td></tr>
+  <tr><td><code>fallback-search-service</code></td><td>9</td><td>Ranking, course isolation, "week 3" finds Week 3</td></tr>
+  <tr><td><code>health-ready</code> / <code>health</code> / <code>integration-status</code></td><td>11</td><td>Deep health incl. missing migrations, liveness, status</td></tr>
+  <tr><td><code>feedback</code> / <code>question-authorization</code></td><td>9</td><td>One rating per user, owner-only access</td></tr>
+</table>
+<p>Most tests are negative cases: they send a bad or unauthorised request and check that it is refused with the right status and that nothing is written.</p>
+<pre><code>$ npm test
+ Test Files  17 passed (17)
+      Tests  169 passed (169)</code></pre>
+
+<h3>12.2 API tests (Postman)</h3>
+<p><code>postman/Final-Demo.postman_collection.json</code> runs against the live URL in seven folders: sign in with Team 01, system health, Happy Path 1 (material → question → answer → rating), Happy Path 2 (no source → ask instructor → reply → FAQ → cited answer), Team 17 webhook (202, duplicate 200, bad signature 401), security failures (401 / 403 / 400 / 404), clean-up. Each request has test scripts; the full collection has ~70 requests.</p>
+
+<h3>12.3 Manual testing</h3>
+<table>
+  <tr><th>#</th><th>Step</th><th>Expected</th><th>Result</th></tr>
+  <tr><td>M1</td><td>Instructor creates course 1305308</td><td>Course listed</td><td class="ok">Pass</td></tr>
+  <tr><td>M2</td><td>Instructor adds a text source</td><td>Listed under approved sources</td><td class="ok">Pass</td></tr>
+  <tr><td>M3</td><td>Student asks a matching question</td><td>Answer with citation</td><td class="ok">Pass</td></tr>
+  <tr><td>M4</td><td>Student rates the answer 5</td><td>Rating stored</td><td class="ok">Pass</td></tr>
+  <tr><td>M5–M6</td><td>Ask my instructor; instructor replies</td><td>In inbox; student sees "New reply"</td><td class="ok">Pass</td></tr>
+  <tr><td>M7</td><td>Course without description</td><td>No stray text</td><td class="part">Failed, fixed, passed</td></tr>
+  <tr><td>M8–M11</td><td>Student creates source; reads other's question; no credentials; bad body</td><td>403, 403, 401, 400</td><td class="ok">Pass</td></tr>
+  <tr><td>M12</td><td>Security headers on <code>/</code></td><td>CSP, X-Frame-Options</td><td class="ok">Pass</td></tr>
+  <tr><td>M13</td><td>Live: sign in with Team 01, ask, AI answer</td><td>Token from Team 01, cited AI answer</td><td class="ok">Pass</td></tr>
+  <tr><td>M14</td><td>Postman against the live URL</td><td>Documented status codes</td><td class="ok">Pass</td></tr>
+  <tr><td>M15</td><td>Live: "what we have to learn in week 3"</td><td>Cites Week 3</td><td class="part">Failed, fixed, passed</td></tr>
+  <tr><td>M16</td><td>Live: "what is week 3 about?"</td><td>Explained in several sentences</td><td class="part">Failed, fixed, passed</td></tr>
+</table>
+
+<h3>12.4 Failures found and fixed</h3>
+<table>
+  <tr><th>Found by</th><th>Problem</th><th>Fix (commit)</th></tr>
+  <tr><td>Manual test M7</td><td>The word "null" shown when a course had no description</td><td><code>ed9f5ec</code></td></tr>
+  <tr><td>Code review</td><td>Deep health said <code>ok</code> when migrations 0004/0005 were missing</td><td><code>b6e1641</code> + test</td></tr>
+  <tr><td>Review of feedback route</td><td>A student could rate another student's answer, many times</td><td><code>5d4d689</code> + tests</td></tr>
+  <tr><td>Load test</td><td>p95 4091 ms with the 8B model</td><td>Switched to 3B: p95 756 ms</td></tr>
+  <tr><td>Manual test M15 (live)</td><td>Search dropped the "3" in "week 3", so the AI got the wrong weeks</td><td><code>c84cbe1</code>: keep single digits, match whole numbers + 2 tests</td></tr>
+  <tr><td>Manual test M16 (live)</td><td>The 3B model answered with only the title</td><td><code>214ccaf</code>, <code>97ee09f</code>: explain-instruction in the prompt and user message; checked against the real model before deploying</td></tr>
+</table>
+
+<h2>13. Development process and AI usage</h2>
+<h3>13.1 Workflow</h3>
+<ol>
+  <li><b>Requirements first:</b> PRD with FR / NFR / business rules; code comments cite the requirement they implement (e.g. <code>PRD FR-07</code>).</li>
+  <li><b>Contract and data design</b> before code (Assignment 3: schema, ER diagram, API).</li>
+  <li><b>Vertical slices:</b> each feature lands with its migration, route, repository and tests together.</li>
+  <li><b>Git:</b> <code>main</code> plus short feature branches (e.g. <code>feature/uploads-and-replies</code>), conventional commit messages.</li>
+  <li><b>Before each commit:</b> <code>npm test</code> and <code>npm run typecheck</code> pass.</li>
+  <li><b>Deploy:</b> a member with Cloudflare access runs migrations, then <code>npm run deploy:khant</code>.</li>
+</ol>
+<h3>13.2 Commit history (milestones)</h3>
+<table>
+  <tr><th style="width:16%">Date</th><th>Milestone</th></tr>
+  <tr><td>31 Aug 2026</td><td>Repository created; PRD and design documents</td></tr>
+  <tr><td>20 Sep 2026</td><td>Hono Worker scaffold, D1 schema (migration 0001), first API vertical slice</td></tr>
+  <tr><td>21 Sep 2026</td><td>Assignment 3 complete; Team 17 webhook receiver</td></tr>
+  <tr><td>8 Nov 2026</td><td>Workers AI answers, structured logs, deep health, load test (p95 proof)</td></tr>
+  <tr><td>9 Nov 2026</td><td>Feedback authorization fixes, Postman collection, web UI served by the Worker, cloud environment</td></tr>
+  <tr><td>10 Nov 2026</td><td>Team 01 sign-in, file uploads and instructor replies, courses, UI refresh, evaluation evidence, live fixes</td></tr>
+</table>
+<p>Full history: <code>git log</code> on <a href="https://github.com/zwethu/Platform-Development-Group/commits/main">GitHub</a> (30 commits from all five members).</p>
+<h3>13.3 AI tools used in development</h3>
+<table>
+  <tr><th style="width:22%">Role (member)</th><th style="width:12%">Tool</th><th>How AI was used</th><th>How output was checked</th></tr>
+  <tr><td>Product Manager (Khant Wai Lin)</td><td>Claude Code</td><td>Turning PRD requirements into features (Team 01 sign-in, courses, uploads, replies); user journeys and acceptance criteria</td><td>Each feature checked against its FR/NFR; Happy Path walked end to end; Team 01 sign-in confirmed with real accounts</td></tr>
+  <tr><td>Frontend UX/UI (Thura Aung)</td><td>GitHub Copilot</td><td>CSS and layout for the UI refresh; repetitive UI code</td><td>Checked in the browser at desktop and phone width, light and dark; no <code>innerHTML</code>; CSP still passes</td></tr>
+  <tr><td>Backend API and Database (Thaw Zin Myo Aung)</td><td>Claude Code</td><td>Tracing request flows; finding the deep-health and "null" bugs; the week-number search fix and AI prompt fix; Postman demo collection; these documents</td><td>Every diff reviewed; <code>npm test</code> and typecheck; a new test that fails without the fix; prompt checked against the real model; claims checked against the code</td></tr>
+  <tr><td>Quality and Security (Sai Aung Kham)</td><td>GitHub Copilot</td><td>Negative test cases (forged tokens, other students' data, bad input); OWASP review; PDPA inventory</td><td>Each case run as a real test or curl request; a control counts only when its 401/403/400 is seen</td></tr>
+  <tr><td>Delivery and Document (Zwe Thura Aung)</td><td>Claude Code</td><td>AI answer path, structured logs, deep health, load-test script; runbook and handover docs</td><td>Load test against the budget; model choice on measured data; docs checked against the running system</td></tr>
+</table>
+<div class="note"><b>Team rule:</b> AI output is a draft. Nothing is merged unless the member has read it and can explain it, tests and typecheck pass, and anything users see was checked in the running app.</div>
+<h3>13.4 AI inside the product</h3>
+<p>Workers AI <code>llama-3.2-3b-instruct</code> writes answers only from approved passages, with a fixed system prompt, passages sent as data, JSON-only output, citation validation, a 15 s timeout, a per-course daily budget, and a keyword fallback. Ratings do not retrain the model; improvement goes through the instructor (low rating → inbox → reply → FAQ source), so a person always decides what the assistant may say.</p>
+
+<h2>14. Deployment and operations</h2>
+<table>
+  <tr><th style="width:28%">Item</th><th>Detail</th></tr>
+  <tr><td>Platform</td><td>Cloudflare Workers (free tier), Worker <code>learning-assistant-api</code>, environment <code>khant</code></td></tr>
+  <tr><td>Deploy</td><td><code>npm run deploy:khant</code> publishes UI and API together</td></tr>
+  <tr><td>Database migrations</td><td><code>npm run db:migrate:khant</code> (applies only missing, additive migrations, before deploying code that needs them)</td></tr>
+  <tr><td>Rollback</td><td><code>wrangler rollback</code>; migrations are additive, so older code keeps working</td></tr>
+  <tr><td>Configuration</td><td><code>wrangler.jsonc</code>: <code>AUTH_MODE=identity</code>, AI model, budget, timeout. Secrets via <code>wrangler secret put</code></td></tr>
+  <tr><td>Health</td><td><code>/v1/health</code> (liveness), <code>/v1/health/ready</code> (database, tables, AI, budget; 503 when degraded)</td></tr>
+  <tr><td>Logs</td><td>Structured JSON per request with correlation ID; AI decision log (mode, fallback reason, tokens, latency)</td></tr>
+  <tr><td>Local development</td><td><code>npm ci</code> → <code>npm run db:migrate:local</code> → <code>npm run dev:local</code> (local D1, real Workers AI, demo sign-in) → <code>npm test</code></td></tr>
+  <tr><td>Runbook</td><td><code>docs/week12-handover/Incident_Runbook.md</code></td></tr>
+</table>
+
+<h2>15. Limitations and future work</h2>
+<table>
+  <tr><th style="width:30%">Limitation</th><th>Next step</th></tr>
+  <tr><td>Keyword search misses paraphrased questions</td><td>Semantic search with embeddings if a free vector option becomes available</td></tr>
+  <tr><td>No course enrolment check</td><td>Integrate a Course Catalog service; deny questions outside a student's courses</td></tr>
+  <tr><td>No self-service data deletion or retention period</td><td><code>DELETE /v1/me/questions/:id</code> (cascades already in place) and a scheduled clean-up after each term</td></tr>
+  <tr><td>Small model gives short answers when material is short</td><td>Richer source material (upload full slides); larger model if latency allows</td></tr>
+  <tr><td>No OpenAPI file; no CI pipeline</td><td>Generate OpenAPI from the validators; run <code>npm test</code> on every push with GitHub Actions</td></tr>
+  <tr><td>No per-source visibility (<code>instructor_only</code>)</td><td>Add a visibility column and filter it in the search query</td></tr>
+</table>
+
+</main>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'strict', fontFamily: 'Inter, Noto Sans, Arial, sans-serif' });</script>
+</body>
+</html>
